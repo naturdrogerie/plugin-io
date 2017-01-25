@@ -56,6 +56,12 @@ class PlaceOrderController extends LayoutController
         if( $orderData == null )
         {
             $notificationService->error("Order (". $orderId .") not found!");
+
+            if(strlen($redirectParam))
+            {
+                $response->redirectTo("/?redirectParam=success=payment");
+            }
+
             return $response->redirectTo("checkout");
         }
 
