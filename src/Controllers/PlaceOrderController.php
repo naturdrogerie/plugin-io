@@ -36,6 +36,12 @@ class PlaceOrderController extends LayoutController
         {
             // TODO get better error text
             $notificationService->error($exception->getMessage());
+
+            if(strlen($redirectParam))
+            {
+                $response->redirectTo("/?redirectParam=success=false");
+            }
+
             return $response->redirectTo("checkout");
         }
     }
