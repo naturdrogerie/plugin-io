@@ -36,13 +36,7 @@ class PlaceOrderController extends LayoutController
         {
             // TODO get better error text
             $notificationService->error($exception->getMessage());
-
-            if(strlen($redirectParam))
-            {
-                $response->redirectTo("/?redirectParam=success=false");
-            }
-
-            return $response->redirectTo("checkout");
+            return $response->redirectTo("checkout/?success=false");
         }
     }
 
@@ -56,13 +50,7 @@ class PlaceOrderController extends LayoutController
         if( $orderData == null )
         {
             $notificationService->error("Order (". $orderId .") not found!");
-
-            if(strlen($redirectParam))
-            {
-                $response->redirectTo("/?redirectParam=success=payment");
-            }
-
-            return $response->redirectTo("checkout");
+            return $response->redirectTo("my_account");
         }
 
         if( $paymentId < 0 )
