@@ -32,7 +32,7 @@ class OrderService
      * @var SessionStorageService
      */
     private $sessionStorage;
-    
+
     /**
      * OrderService constructor.
      * @param OrderRepositoryContract $orderRepository
@@ -56,9 +56,16 @@ class OrderService
      */
 	public function placeOrder():LocalizedOrder
 	{
+		$shippingProfileId = null;
+
         $checkoutService = pluginApp(CheckoutService::class);
         $customerService = pluginApp(CustomerService::class);
-        
+
+		if($checkoutService->getShippingProfileId() > 0)
+		{
+			$shippingProfileId = $checkoutService->getShippingProfileId();
+		}
+
 		$order = pluginApp(OrderBuilder::class)->prepare(OrderType::ORDER)
 		                            ->fromBasket() //TODO: Add shipping costs & payment surcharge as OrderItem
 		                            ->withStatus(3.3)
@@ -66,11 +73,11 @@ class OrderService
 		                            ->withAddressId($checkoutService->getBillingAddressId(), AddressType::BILLING)
 		                            ->withAddressId($checkoutService->getDeliveryAddressId(), AddressType::DELIVERY)
 		                            ->withOrderProperty(OrderPropertyType::PAYMENT_METHOD, OrderOptionSubType::MAIN_VALUE, $checkoutService->getMethodOfPaymentId())
-                                    ->withOrderProperty(OrderPropertyType::SHIPPING_PROFILE, OrderOptionSubType::MAIN_VALUE, $checkoutService->getShippingProfileId())
+                                    ->withOrderProperty(OrderPropertyType::SHIPPING_PROFILE, OrderOptionSubType::MAIN_VALUE, $shippingProfileId)
 		                            ->done();
 
 		$order = $this->orderRepository->createOrder($order);
-        
+
         if($customerService->getContactId() <= 0)
         {
             $this->sessionStorage->setSessionValue(SessionStorageKeys::LATEST_ORDER_ID, $order->id);
@@ -78,7 +85,7 @@ class OrderService
 
         // reset basket after order was created
         $this->basketService->resetBasket();
-        
+
         return LocalizedOrder::wrap( $order, "de" );
 	}
 
@@ -138,10 +145,10 @@ class OrderService
         {
             $order = $this->orderRepository->findOrderById($this->sessionStorage->getSessionValue(SessionStorageKeys::LATEST_ORDER_ID));
         }
-        
+
         return LocalizedOrder::wrap( $order, "de" );
     }
-    
+
     /**
      * Return order status text by status id
      * @param $statusId
