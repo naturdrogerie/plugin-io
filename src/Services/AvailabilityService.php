@@ -32,7 +32,7 @@ class AvailabilityService
      */
 	public function getAvailabilityById( int $availabilityId = 0 ):Availability
     {
-        return $this->availabilityRepository->findAvailability( $availabilityId );
+        return $this->availabilityRepository->find( $availabilityId );
     }
 
     /**
