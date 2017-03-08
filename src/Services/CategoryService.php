@@ -5,6 +5,7 @@ namespace IO\Services;
 use Plenty\Modules\Category\Models\Category;
 use Plenty\Modules\Category\Contracts\CategoryRepositoryContract;
 use Plenty\Repositories\Models\PaginatedResult;
+use Plenty\Plugin\Application;
 
 use IO\Services\WebstoreConfigurationService;
 use IO\Services\ItemService;
@@ -37,15 +38,21 @@ class CategoryService
 	 * @var array
 	 */
 	private $currentCategoryTree = [];
+    
+    /**
+     * @var Application
+     */
+    private $app;
 
     /**
      * CategoryService constructor.
      * @param CategoryRepositoryContract $category
      */
-	 public function __construct(CategoryRepositoryContract $categoryRepository, WebstoreConfigurationService $webstoreConfig)
+	 public function __construct(CategoryRepositoryContract $categoryRepository, WebstoreConfigurationService $webstoreConfig, Application $app)
 	{
 		$this->categoryRepository    = $categoryRepository;
 		$this->webstoreConfig 		 = $webstoreConfig;
+        $this->app = $app;
 	}
 
 	/**
@@ -196,7 +203,7 @@ class CategoryService
      */
     public function getNavigationTree(string $type = "all", string $lang = "de"):array
     {
-		return $this->categoryRepository->getLinklistTree($type, $lang, $this->webstoreConfig->getWebstoreConfig()->webstoreId);
+		return $this->categoryRepository->getLinklistTree($type, $lang, $this->app->getWebstoreId());
     }
 
     /**
@@ -207,7 +214,7 @@ class CategoryService
      */
     public function getNavigationList(string $type = "all", string $lang = "de"):array
     {
-		return $this->categoryRepository->getLinklistList($type, $lang, $this->webstoreConfig->getWebstoreConfig()->webstoreId);
+		return $this->categoryRepository->getLinklistList($type, $lang, $this->app->getWebstoreId());
     }
 
     /**
