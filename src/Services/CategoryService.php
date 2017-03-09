@@ -203,7 +203,7 @@ class CategoryService
      */
     public function getNavigationTree(string $type = "all", string $lang = "de"):array
     {
-		return $this->categoryRepository->getLinklistTree($type, $lang, $this->app->getWebstoreId());
+		return $this->categoryRepository->getLinklistTree($type, $lang, $this->app->getPlentyId());
     }
 
     /**
@@ -214,7 +214,7 @@ class CategoryService
      */
     public function getNavigationList(string $type = "all", string $lang = "de"):array
     {
-		return $this->categoryRepository->getLinklistList($type, $lang, $this->app->getWebstoreId());
+		return $this->categoryRepository->getLinklistList($type, $lang, $this->app->getPlentyId());
     }
 
     /**
