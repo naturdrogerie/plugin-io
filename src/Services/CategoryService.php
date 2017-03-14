@@ -242,4 +242,12 @@ class CategoryService
 
         return $hierarchy;
     }
+
+	/**
+	* @return Category
+	*/
+	public function getCurrentCategory()
+	{
+	return $this->currentCategory;
+	}
 }
