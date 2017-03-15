@@ -413,7 +413,6 @@ class ItemService
         $filterBuilder = pluginApp( ItemFilterBuilder::class );
 		$filter = $filterBuilder
             ->hasId([$itemId])
-            ->variationIsActive()
             ->build();
 
         /** @var ItemParamsBuilder $paramsBuilder */
