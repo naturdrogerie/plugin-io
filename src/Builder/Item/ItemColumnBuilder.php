@@ -83,7 +83,8 @@ class ItemColumnBuilder
 				                    VariationBaseFields::HEIGHT_MM,
 				                    VariationBaseFields::LENGTH_MM,
 				                    VariationBaseFields::UNIT_COMBINATION_ID,
-									VariationBaseFields::LAST_UPDATE_TIMESTAMP
+									VariationBaseFields::LAST_UPDATE_TIMESTAMP,
+									VariationBaseFields::PRIMARY_VARIATION_ID
 			                    ])
 			->withVariationImageList([
 				                         VariationImageFields::IMAGE_ID,
@@ -101,7 +102,10 @@ class ItemColumnBuilder
 			                                      ])
 			->withVariationStandardCategory([
 				                                VariationStandardCategoryFields::CATEGORY_ID
-			                                ]);
+			                                ])
+				->withVariationSupplierList([
+												VariationSupplierFields::SUPPLIER_ID
+												]);
 	}
 
 	/**
