@@ -112,7 +112,7 @@ class OrderService
      * @param int $items
      * @return PaginatedResult
      */
-    public function getOrdersForContact(int $contactId, int $page = 1, int $items = 50 , array $filters = [])
+    public function getOrdersForContact(int $contactId, int $page = 1, int $items = 50 , array $filters = []):PaginatedResult
     {
 		$this->orderRepository->setFilters($filters);
 
@@ -122,7 +122,7 @@ class OrderService
             $items
         );
 
-        return $orders;
+        return LocalizedOrder::wrapPaginated( $orders, "de" );
     }
 
     /**
