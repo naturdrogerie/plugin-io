@@ -90,6 +90,7 @@ class ItemService
 		$filter = $filterBuilder
 			->hasId($itemIds)
             ->variationIsActive()
+			->variationIsPrimary()
 			->build();
 
 		// Set the parameters
@@ -158,7 +159,6 @@ class ItemService
         $filterBuilder = pluginApp( ItemFilterBuilder::class );
 		$filter = $filterBuilder
 			->variationHasId($variationIds)
-            ->variationIsActive()
 			->build();
 
 		// Set the parameters
