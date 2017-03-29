@@ -12,6 +12,7 @@ use Plenty\Modules\Cloud\ElasticSearch\Lib\Sorting\SortingInterface;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Source\IncludeSource;
 use Plenty\Modules\Item\Search\Contracts\VariationElasticSearchSearchRepositoryContract;
 use Plenty\Modules\Item\SalesPrice\Models\SalesPriceSearchResponse;
+use Plenty\Plugin\Log\Loggable;
 
 /**
  * Created by ptopczewski, 09.01.17 08:35
@@ -20,7 +21,7 @@ use Plenty\Modules\Item\SalesPrice\Models\SalesPriceSearchResponse;
  */
 class ItemLoaderFactoryES implements ItemLoaderFactory
 {
-    use Performance;
+    use Performance, Loggable;
 
 	/**
 	 * @param array $loaderClassList
@@ -115,6 +116,7 @@ class ItemLoaderFactoryES implements ItemLoaderFactory
         $this->start('execute');
         $result = $elasticSearchRepo->execute();
         $this->track('execute');
+        $this->getLogger('ES took')->info('es took', $result['took']);
 
         if(count($result['documents']))
         {
