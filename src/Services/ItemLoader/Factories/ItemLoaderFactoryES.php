@@ -1,6 +1,7 @@
 <?php
 namespace IO\Services\ItemLoader\Factories;
 
+use IO\Helper\Performance;
 use IO\Services\ItemLoader\Contracts\ItemLoaderContract;
 use IO\Services\ItemLoader\Contracts\ItemLoaderFactory;
 use IO\Services\ItemLoader\Contracts\ItemLoaderPaginationContract;
@@ -19,6 +20,8 @@ use Plenty\Modules\Item\SalesPrice\Models\SalesPriceSearchResponse;
  */
 class ItemLoaderFactoryES implements ItemLoaderFactory
 {
+    use Performance;
+
 	/**
 	 * @param array $loaderClassList
 	 * @param array $resultFields
@@ -108,11 +111,14 @@ class ItemLoaderFactoryES implements ItemLoaderFactory
         {
             $elasticSearchRepo->addSearch($search);
         }
-        
+
+        $this->start('execute');
         $result = $elasticSearchRepo->execute();
-        
+        $this->track('execute');
+
         if(count($result['documents']))
         {
+            $this->start('salesPrice');
             /**
              * @var SalesPriceService $salesPriceService
              */
@@ -149,6 +155,8 @@ class ItemLoaderFactoryES implements ItemLoaderFactory
                     $result['documents'][$key] = $variation;
                 }
             }
+            $this->track('salesPrice');
+
         }
         
         return $result;
