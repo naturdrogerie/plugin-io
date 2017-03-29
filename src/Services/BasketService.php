@@ -2,6 +2,7 @@
 
 namespace IO\Services;
 
+use IO\Helper\Performance;
 use IO\Services\ItemLoader\Loaders\BasketItems;
 use IO\Services\ItemLoader\Services\ItemLoaderService;
 use Plenty\Modules\Basket\Contracts\BasketRepositoryContract;
@@ -17,6 +18,8 @@ use IO\Services\ItemService;
  */
 class BasketService
 {
+    use Performance;
+    
 	/**
 	 * @var BasketItemRepositoryContract
 	 */
@@ -51,7 +54,10 @@ class BasketService
 	 */
 	public function getBasket():Basket
 	{
-		return pluginApp(BasketRepositoryContract::class)->load();
+	    $this->track(' before getBasket');
+		$basket = pluginApp(BasketRepositoryContract::class)->load();
+	    $this->track(' after getBasket');
+	    return $basket;
 	}
 
     /**
@@ -61,10 +67,12 @@ class BasketService
 	public function getBasketItems():array
 	{
 		$result = array();
-        
+
+        $this->track(' before getBasketItems');
+
         $basketItems = $this->basketItemRepository->all();
         $basketItemData = $this->getBasketItemData( $basketItems );
-        
+
         foreach( $basketItems as $basketItem )
         {
             array_push(
@@ -72,7 +80,8 @@ class BasketService
                 $this->addVariationData($basketItem, $basketItemData[$basketItem->variationId])
             );
         }
-        
+
+        $this->track(' after getBasketItems');
         return $result;
 	}
 	
@@ -84,7 +93,9 @@ class BasketService
         }
         
         $result = array();
-    
+
+        $this->track(' before getBasketItemsForTemplate');
+
         $basketItems = $this->basketItemRepository->all();
         $basketItemData = $this->getBasketItemData( $basketItems, $template );
     
@@ -95,7 +106,9 @@ class BasketService
                 $this->addVariationData($basketItem, $basketItemData[$basketItem->variationId])
             );
         }
-    
+
+        $this->track(' after getBasketItemsForTemplate');
+
         return $result;
     }
 

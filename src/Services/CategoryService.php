@@ -2,15 +2,12 @@
 
 namespace IO\Services;
 
-use Plenty\Modules\Category\Models\Category;
-use Plenty\Modules\Category\Contracts\CategoryRepositoryContract;
-use Plenty\Repositories\Models\PaginatedResult;
-
-use IO\Services\WebstoreConfigurationService;
-use IO\Services\ItemService;
-use IO\Helper\CategoryMap;
 use IO\Helper\CategoryKey;
-use IO\Builder\Category\CategoryParamsBuilder;
+use IO\Helper\CategoryMap;
+use IO\Helper\Performance;
+use Plenty\Modules\Category\Contracts\CategoryRepositoryContract;
+use Plenty\Modules\Category\Models\Category;
+use Plenty\Repositories\Models\PaginatedResult;
 
 /**
  * Class CategoryService
@@ -18,6 +15,8 @@ use IO\Builder\Category\CategoryParamsBuilder;
  */
 class CategoryService
 {
+    use Performance;
+
 	/**
 	 * @var CategoryRepositoryContract
 	 */
@@ -40,7 +39,8 @@ class CategoryService
 
     /**
      * CategoryService constructor.
-     * @param CategoryRepositoryContract $category
+     * @param CategoryRepositoryContract $categoryRepository
+     * @param WebstoreConfigurationService $webstoreConfig
      */
 	 public function __construct(CategoryRepositoryContract $categoryRepository, WebstoreConfigurationService $webstoreConfig)
 	{
@@ -214,7 +214,10 @@ class CategoryService
      */
     public function getNavigationTree(string $type = "all", string $lang = "de"):array
     {
-		return $this->categoryRepository->getLinklistTree($type, $lang, $this->webstoreConfig->getWebstoreConfig()->webstoreId);
+        $this->track('before getNavigationTree');
+		$tree = $this->categoryRepository->getLinklistTree($type, $lang, $this->webstoreConfig->getWebstoreConfig()->webstoreId);
+        $this->track('after getNavigationTree');
+        return $tree;
     }
 
     /**
@@ -225,7 +228,10 @@ class CategoryService
      */
     public function getNavigationList(string $type = "all", string $lang = "de"):array
     {
-		return $this->categoryRepository->getLinklistList($type, $lang, $this->webstoreConfig->getWebstoreConfig()->webstoreId);
+        $this->track('before getNavigationList');
+        $list = $this->categoryRepository->getLinklistList($type, $lang, $this->webstoreConfig->getWebstoreConfig()->webstoreId);
+        $this->track('after getNavigationList');
+        return $list;
     }
 
     /**

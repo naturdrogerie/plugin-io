@@ -1,6 +1,7 @@
 <?php
 namespace IO\Services\ItemLoader\Services;
 
+use IO\Helper\Performance;
 use IO\Services\ItemLoader\Contracts\ItemLoaderFactory;
 
 /**
@@ -10,7 +11,7 @@ use IO\Services\ItemLoader\Contracts\ItemLoaderFactory;
  */
 class ItemLoaderService
 {
-	use LoadResultFields;
+	use LoadResultFields, Performance;
 
 	/**
 	 * @var array
@@ -65,7 +66,10 @@ class ItemLoaderService
 	{
 		/** @var ItemLoaderFactory $itemLoaderFactory */
 		$itemLoaderFactory = pluginApp(ItemLoaderFactory::class);
-		return $itemLoaderFactory->runSearch($this->loaderClassList, $this->resultFields, $this->options);
+		$this->track('before runSearch');
+		$searchResult = $itemLoaderFactory->runSearch($this->loaderClassList, $this->resultFields, $this->options);
+		$this->track('after runSearch');
+		return $searchResult;
 	}
 
 	/**
