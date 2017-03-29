@@ -4,6 +4,7 @@ namespace IO\Extensions\Functions;
 
 use IO\Extensions\AbstractFunction;
 use IO\Helper\ComponentContainer;
+use IO\Helper\Performance;
 use Plenty\Plugin\Events\Dispatcher;
 
 /**
@@ -12,6 +13,8 @@ use Plenty\Plugin\Events\Dispatcher;
  */
 class Component extends AbstractFunction
 {
+    use Performance;
+
     /**
      * @var array
      */
@@ -77,7 +80,9 @@ class Component extends AbstractFunction
      */
     public function getComponentTemplate():string
     {
-        return array_shift($this->components);
+        $component = array_shift($this->components);
+        $this->trackRuntime($component);
+        return $component;
     }
 
 }
