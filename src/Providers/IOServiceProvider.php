@@ -4,6 +4,7 @@ namespace IO\Providers;
 
 use IO\Extensions\TwigIOExtension;
 use IO\Extensions\TwigServiceProvider;
+use IO\Middlewares\Performance;
 use IO\Services\ItemLoader\Contracts\ItemLoaderFactory;
 use IO\Services\ItemLoader\Extensions\TwigLoaderPresets;
 use IO\Services\ItemLoader\Factories\ItemLoaderFactoryES;
@@ -23,6 +24,7 @@ class IOServiceProvider extends ServiceProvider
      */
     public function register()
     {
+        $this->addGlobalMiddleware(Performance::class);
         $this->getApplication()->singleton(PerformanceTracker::class);
         $this->getApplication()->register(IORouteServiceProvider::class);
 

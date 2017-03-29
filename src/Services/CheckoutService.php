@@ -3,6 +3,7 @@
 namespace IO\Services;
 
 use IO\Builder\Order\AddressType;
+use IO\Helper\Performance;
 use Plenty\Modules\Frontend\PaymentMethod\Contracts\FrontendPaymentMethodRepositoryContract;
 use Plenty\Modules\Frontend\Contracts\Checkout;
 use Plenty\Modules\Basket\Contracts\BasketRepositoryContract;
@@ -18,6 +19,8 @@ use IO\Services\BasketService;
  */
 class CheckoutService
 {
+    use Performance;
+    
 	/**
 	 * @var FrontendPaymentMethodRepositoryContract
 	 */
@@ -87,6 +90,7 @@ class CheckoutService
      */
 	public function getCurrency():string
 	{
+	    $this->start('getCurrency');
 		$currency = (string)$this->sessionStorage->getPlugin()->getValue(SessionStorageKeys::CURRENCY);
 		if($currency === null || $currency === "")
 		{
@@ -107,6 +111,7 @@ class CheckoutService
             }
             $this->setCurrency($currency);
 		}
+        $this->track('getCurrency');
 		return $currency;
 	}
 
@@ -116,7 +121,9 @@ class CheckoutService
      */
 	public function setCurrency(string $currency)
 	{
+        $this->start('setCurrency');
 		$this->sessionStorage->getPlugin()->setValue(SessionStorageKeys::CURRENCY, $currency);
+        $this->track('setCurrency');
 	}
 
     /**
@@ -125,13 +132,15 @@ class CheckoutService
      */
 	public function getMethodOfPaymentId():int
 	{
-		$methodOfPaymentID = (int)$this->checkout->getPaymentMethodId();
+        $this->start('getMethodOfPaymentId');
+        $methodOfPaymentID = (int)$this->checkout->getPaymentMethodId();
         if( $methodOfPaymentID === null )
         {
             $methodOfPaymentList = $this->getMethodOfPaymentList();
             $methodOfPaymentID = $methodOfPaymentList[0]->id;
             $this->setMethodOfPaymentId($methodOfPaymentID);
         }
+        $this->track('getMethodOfPaymentId');
         return $methodOfPaymentID;
 	}
 
@@ -141,9 +150,11 @@ class CheckoutService
      */
 	public function setMethodOfPaymentId(int $methodOfPaymentID)
 	{
-		$this->checkout->setPaymentMethodId($methodOfPaymentID);
+        $this->start('setMethodOfPaymentId');
+        $this->checkout->setPaymentMethodId($methodOfPaymentID);
 		$this->sessionStorage->getPlugin()->setValue( 'MethodOfPaymentID', $methodOfPaymentID );
-	}
+        $this->track('setMethodOfPaymentId');
+    }
 
     /**
      * Prepare the payment

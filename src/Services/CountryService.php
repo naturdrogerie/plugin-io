@@ -2,6 +2,7 @@
 
 namespace IO\Services;
 
+use IO\Helper\Performance;
 use Plenty\Modules\Order\Shipping\Countries\Contracts\CountryRepositoryContract;
 use Plenty\Modules\Order\Shipping\Countries\Models\Country;
 use Plenty\Modules\Frontend\Contracts\Checkout;
@@ -12,6 +13,8 @@ use Plenty\Modules\Frontend\Contracts\Checkout;
  */
 class CountryService
 {
+    use Performance;
+
 	/**
 	 * @var CountryRepositoryContract
 	 */
@@ -32,6 +35,7 @@ class CountryService
      */
 	public function getActiveCountriesList($lang = 'de'):array
 	{
+        $this->start('getActiveCountriesList');
         $list = $this->countryRepository->getCountriesList(1, array('states'));
 
         $countriesList = array();
@@ -41,6 +45,7 @@ class CountryService
             $countriesList[] = $country;
         }
 
+        $this->track('getActiveCountriesList');
 		return $countriesList;
 	}
 
@@ -60,8 +65,10 @@ class CountryService
      */
 	public function setShippingCountryId(int $shippingCountryId)
 	{
-		pluginApp(Checkout::class)->setShippingCountryId($shippingCountryId);
-	}
+        $this->start('setShippingCountryId');
+        pluginApp(Checkout::class)->setShippingCountryId($shippingCountryId);
+        $this->track('setShippingCountryId');
+    }
 
     /**
      * Get a specific country by ID
@@ -70,7 +77,10 @@ class CountryService
      */
 	public function getCountryById(int $countryId):Country
 	{
-		return $this->countryRepository->getCountryById($countryId);
+        $this->start('getCountryById');
+        $country = $this->countryRepository->getCountryById($countryId);
+        $this->track('getCountryById');
+        return $country;
 	}
 
     /**

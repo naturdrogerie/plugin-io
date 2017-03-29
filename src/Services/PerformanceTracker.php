@@ -14,6 +14,8 @@ class PerformanceTracker
 
     private $startTime = 0;
 
+    private $trackedMap = [];
+
     /**
      * PerformanceTracker constructor.
      */
@@ -27,7 +29,7 @@ class PerformanceTracker
      */
     public function trackRuntime($key)
     {
-        $this->getLogger($key)->info('io runtime', microtime(true)-$this->startTime);
+        $this->trackedMap[] = ['key' => $key, 'runtime' => microtime(true)-$this->startTime];
     }
 
     /**
@@ -36,6 +38,14 @@ class PerformanceTracker
      */
     public function trackDuration($key, $duration)
     {
-        $this->getLogger($key)->info('duration', number_format($duration, 3).' sec');
+        $this->trackedMap[] = ['key' => $key, 'duration' => number_format($duration, 3).' sec'];
+    }
+
+    /**
+     * 
+     */
+    public function save()
+    {
+        $this->getLogger('Performance')->info('result', $this->trackedMap);
     }
 }
