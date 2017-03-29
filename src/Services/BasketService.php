@@ -54,9 +54,9 @@ class BasketService
 	 */
 	public function getBasket():Basket
 	{
-	    $this->track(' before getBasket');
+	    $this->start('getBasket');
 		$basket = pluginApp(BasketRepositoryContract::class)->load();
-	    $this->track(' after getBasket');
+	    $this->track('getBasket');
 	    return $basket;
 	}
 
@@ -68,7 +68,7 @@ class BasketService
 	{
 		$result = array();
 
-        $this->track(' before getBasketItems');
+        $this->start('getBasketItems');
 
         $basketItems = $this->basketItemRepository->all();
         $basketItemData = $this->getBasketItemData( $basketItems );
@@ -81,7 +81,7 @@ class BasketService
             );
         }
 
-        $this->track(' after getBasketItems');
+        $this->track('getBasketItems');
         return $result;
 	}
 	
@@ -94,7 +94,7 @@ class BasketService
         
         $result = array();
 
-        $this->track(' before getBasketItemsForTemplate');
+        $this->start('getBasketItemsForTemplate');
 
         $basketItems = $this->basketItemRepository->all();
         $basketItemData = $this->getBasketItemData( $basketItems, $template );
@@ -107,7 +107,7 @@ class BasketService
             );
         }
 
-        $this->track(' after getBasketItemsForTemplate');
+        $this->track('getBasketItemsForTemplate');
 
         return $result;
     }

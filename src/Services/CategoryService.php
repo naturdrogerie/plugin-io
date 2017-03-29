@@ -214,9 +214,9 @@ class CategoryService
      */
     public function getNavigationTree(string $type = "all", string $lang = "de"):array
     {
-        $this->track('before getNavigationTree');
+        $this->start('getNavigationTree');
 		$tree = $this->categoryRepository->getLinklistTree($type, $lang, $this->webstoreConfig->getWebstoreConfig()->webstoreId);
-        $this->track('after getNavigationTree');
+        $this->track('getNavigationTree');
         return $tree;
     }
 
@@ -228,9 +228,9 @@ class CategoryService
      */
     public function getNavigationList(string $type = "all", string $lang = "de"):array
     {
-        $this->track('before getNavigationList');
+        $this->start('getNavigationList');
         $list = $this->categoryRepository->getLinklistList($type, $lang, $this->webstoreConfig->getWebstoreConfig()->webstoreId);
-        $this->track('after getNavigationList');
+        $this->track('getNavigationList');
         return $list;
     }
 

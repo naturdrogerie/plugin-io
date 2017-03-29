@@ -10,13 +10,30 @@ use IO\Services\PerformanceTracker;
  */
 trait Performance
 {
+    private $trackedKeys = [];
+
     /**
      * @param string $key
+     */
+    private function trackRuntime($key)
+    {
+        /** @var PerformanceTracker $tracker */
+        $tracker = pluginApp(PerformanceTracker::class);
+        $tracker->trackRuntime(__CLASS__ . ' - '.$key);
+    }
+
+    private function start($key)
+    {
+        $this->trackedKeys[$key] = microtime(true);
+    }
+
+    /**
+     * @param $key
      */
     private function track($key)
     {
         /** @var PerformanceTracker $tracker */
         $tracker = pluginApp(PerformanceTracker::class);
-        $tracker->trackRuntime(__CLASS__ . ' - '.$key);
+        $tracker->trackDuration(__CLASS__ . ' - '.$key, microtime(true)-$this->trackedKeys[$key]);
     }
 }

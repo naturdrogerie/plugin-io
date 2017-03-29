@@ -35,7 +35,7 @@ class AvailabilityService
      */
 	public function getAvailabilityById( int $availabilityId = 0 )
     {
-        $this->track('AvailabilityService');
+        $this->trackRuntime('AvailabilityService');
         return $this->availabilityRepository->findAvailability( $availabilityId );
     }
 

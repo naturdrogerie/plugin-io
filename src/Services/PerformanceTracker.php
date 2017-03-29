@@ -29,4 +29,13 @@ class PerformanceTracker
     {
         $this->getLogger($key)->info('io runtime', microtime(true)-$this->startTime);
     }
+
+    /**
+     * @param $key
+     * @param $duration
+     */
+    public function trackDuration($key, $duration)
+    {
+        $this->getLogger($key)->info('duration', number_format($duration, 3).' sec');
+    }
 }

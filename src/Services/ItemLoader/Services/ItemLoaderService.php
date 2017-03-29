@@ -66,9 +66,9 @@ class ItemLoaderService
 	{
 		/** @var ItemLoaderFactory $itemLoaderFactory */
 		$itemLoaderFactory = pluginApp(ItemLoaderFactory::class);
-		$this->track('before runSearch');
+		$this->start('runSearch');
 		$searchResult = $itemLoaderFactory->runSearch($this->loaderClassList, $this->resultFields, $this->options);
-		$this->track('after runSearch');
+		$this->track('runSearch');
 		return $searchResult;
 	}
 
