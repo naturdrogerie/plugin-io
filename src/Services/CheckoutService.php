@@ -90,8 +90,7 @@ class CheckoutService
      */
 	public function getCurrency():string
 	{
-	    $this->start('getCurrency');
-		$currency = (string)$this->sessionStorage->getPlugin()->getValue(SessionStorageKeys::CURRENCY);
+	    $currency = (string)$this->sessionStorage->getPlugin()->getValue(SessionStorageKeys::CURRENCY);
 		if($currency === null || $currency === "")
 		{
             /** @var SessionStorageService $sessionService */
@@ -111,8 +110,7 @@ class CheckoutService
             }
             $this->setCurrency($currency);
 		}
-        $this->track('getCurrency');
-		return $currency;
+        return $currency;
 	}
 
     /**

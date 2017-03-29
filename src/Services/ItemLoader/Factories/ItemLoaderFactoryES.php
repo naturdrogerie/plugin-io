@@ -125,7 +125,7 @@ class ItemLoaderFactoryES implements ItemLoaderFactory
              * @var SalesPriceService $salesPriceService
              */
             $salesPriceService = pluginApp(SalesPriceService::class);
-            
+
             foreach($result['documents'] as $key => $variation)
             {
                 if((int)$variation['data']['variation']['id'] > 0)
@@ -135,32 +135,33 @@ class ItemLoaderFactoryES implements ItemLoaderFactory
                     {
                         $quantity = (int)$options['basketVariationQuantities'][$variation['data']['variation']['id']];
                     }
-                    
+
                     $salesPrice = $salesPriceService->getSalesPriceForVariation($variation['data']['variation']['id'], 'default', $quantity);
                     if($salesPrice instanceof SalesPriceSearchResponse)
                     {
                         $variation['data']['calculatedPrices']['default'] = $salesPrice;
                     }
-                    
+
                     $rrp = $salesPriceService->getSalesPriceForVariation($variation['data']['variation']['id'], 'rrp');
                     if($rrp instanceof SalesPriceSearchResponse)
                     {
                         $variation['data']['calculatedPrices']['rrp'] = $rrp;
                     }
-        
+
                     $specialOffer = $salesPriceService->getSalesPriceForVariation($variation['data']['variation']['id'], 'specialOffer');
                     if($specialOffer instanceof SalesPriceSearchResponse)
                     {
                         $variation['data']['calculatedPrices']['specialOffer'] = $specialOffer;
                     }
-        
+
                     $result['documents'][$key] = $variation;
                 }
             }
             $this->track('salesPrice');
 
         }
-        
+
+        $this->trackRuntime('afterSearch');
         return $result;
 	}
 }
