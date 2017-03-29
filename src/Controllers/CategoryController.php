@@ -1,6 +1,7 @@
 <?php //strict
 namespace IO\Controllers;
 
+use IO\Helper\Performance;
 use Plenty\Modules\Category\Contracts\CategoryRepositoryContract;
 use Plenty\Modules\Item\DataLayer\Contracts\ItemDataLayerRepositoryContract;
 use Plenty\Modules\Category\Models\Category;
@@ -13,6 +14,7 @@ use IO\Helper\CategoryKey;
  */
 class CategoryController extends LayoutController
 {
+    use Performance;
 
 	/**
 	 * Prepare and render the data for categories
@@ -44,8 +46,11 @@ class CategoryController extends LayoutController
 		{
 			$currentCategory = $this->categoryRepo->findCategoryByUrl($lvl1, $lvl2, $lvl3, $lvl4, $lvl5, $lvl6);
 		}
-        
-        return $this->renderCategory($currentCategory);
+
+		$this->start('renderCategory');
+        $result = $this->renderCategory($currentCategory);
+        $this->track('renderCategory');
+        return $result;
 	}
 
 }
