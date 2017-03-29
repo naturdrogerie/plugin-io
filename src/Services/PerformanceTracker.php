@@ -25,6 +25,7 @@ class PerformanceTracker
     }
 
     /**
+     * performance.trackRuntime('')
      * @param $key
      */
     public function trackRuntime($key)
