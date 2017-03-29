@@ -94,9 +94,9 @@ class TwigServiceProvider extends Twig_Extension
                 "localization"      => pluginApp( LocalizationService::class ),
                 "coupon"            => pluginApp( CouponService::class ),
                 "legalInformation"  => pluginApp( LegalInformationService::class ),
-                "salesPrice"        => pluginApp( SalesPriceService::class ),
-                "performance"       => pluginApp( PerformanceTracker::class)
-            ]
+                "salesPrice"        => pluginApp( SalesPriceService::class )
+            ],
+            "performance"       => pluginApp( PerformanceTracker::class)
         ];
     }
 }
