@@ -4,13 +4,15 @@ namespace IO\Services;
 
 use Plenty\Modules\Category\Models\Category;
 use Plenty\Modules\Category\Contracts\CategoryRepositoryContract;
+use Plenty\Modules\Plugin\Storage\Contracts\StorageRepositoryContract;
+use Plenty\Plugin\CachingRepository;
 use Plenty\Repositories\Models\PaginatedResult;
+use Plenty\Plugin\Application;
 
 use IO\Services\WebstoreConfigurationService;
 use IO\Services\ItemService;
 use IO\Helper\CategoryMap;
 use IO\Helper\CategoryKey;
-use IO\Builder\Category\CategoryParamsBuilder;
 
 /**
  * Class CategoryService
@@ -214,7 +216,37 @@ class CategoryService
      */
     public function getNavigationTree(string $type = "all", string $lang = "de"):array
     {
-		return $this->categoryRepository->getLinklistTree($type, $lang, $this->webstoreConfig->getWebstoreConfig()->webstoreId);
+        /**
+         * @var Application $app
+         */
+        $app = pluginApp(Application::class);
+    
+        /**
+         * @var StorageRepositoryContract $storageRepo
+         */
+        $storageRepo = pluginApp(StorageRepositoryContract::class);
+        /**
+         * @var CachingRepository $cachingRepo
+         */
+        $cachingRepo = pluginApp(CachingRepository::class);
+    
+        $cachingInterval = 15;
+        $pluginName = 'IO';
+        $cachingKey = $type.'_'.$lang.'_'.$app->getPlentyId();
+    
+        if($cachingRepo->has($cachingKey))
+        {
+            //$navigationTree = json_decode();
+            $storageResult = $storageRepo->getObject($pluginName, $cachingKey);
+            $navigationTree = json_decode($storageResult->get('body'));
+        }
+        else
+        {
+            $navigationTree = $this->categoryRepository->getLinklistTree($type, $lang, $this->webstoreConfig->getWebstoreConfig()->webstoreId);
+            $storageRepo->uploadObject($pluginName, $cachingKey, $navigationTree);//json_encode($navigationTree));
+            $cachingRepo->put($cachingKey, $cachingKey, $cachingInterval);
+        }
+    
     }
 
     /**
