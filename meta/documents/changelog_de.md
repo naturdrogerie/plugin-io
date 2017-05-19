@@ -1,5 +1,42 @@
 # Release Notes für IO
 
+## v1.2.2 (2017-05-11)
+
+## Behoben
+
+- Die Vorschläge der Autovervollständigung von Suchbegriffen berücksichtigen nun die Einstellung der Variantengruppierung.
+
+## v1.2.1 (2017-05-08)
+
+## Behoben
+
+- Kleinere Bugfixes und Verbesserungen.
+
+## v1.2.0 (2017-04-28)
+
+### Behoben
+
+- Registrierungen mit einer E-Mail-Adresse, für die bereits ein Konto existiert, sind nun nicht mehr möglich.
+- Breadcrumbs funktionieren jetzt auch in der Einzelansicht eines Artikels.
+
+## v1.1.1 (2017-04-24)
+
+### Hinzugefügt
+
+- Logik für die Artikelliste der zuletzt gesehenen Artikel
+
+### Behoben
+
+- Variantengruppierung in der Kategorieübersicht und Suchergebnisseite
+- Sortierung nach Artikelnamen in der Kategorieübersicht und auf der Suchergebnisseite
+
+## v1.1.0 (2017-04-12)
+
+### Hinzugefügt
+
+- TemplateService: `isCategoryView` Methode um zu überprüfen, ob die aktuelle Seite die Kategorie-Seite ist.
+- Support für neue Kategorie-Logik in Ceres.
+
 ## v1.0.4 (2017-03-27)
 
 ### Behoben

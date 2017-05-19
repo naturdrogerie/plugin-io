@@ -1,5 +1,42 @@
 # Release Notes for IO
 
+## v1.2.2 (2017-05-11)
+
+## Fixed
+
+- Suggested search results created by the auto-complete feature are now taking into account the grouping of variations.
+
+## v1.2.1 (2017-05-08)
+
+## Fixed
+
+- Minor bug fixes and improvements.
+
+## v1.2.0 (2017-04-28)
+
+### Fixed
+
+- Registrations with an email address for which an account already exists are no longer possible.
+- Breadcrumbs are now also working correctly in the single item view.
+
+## v1.1.1 (2017-04-24)
+
+### Added
+
+- Logic for the item list of last seen items
+
+### Fixed
+
+- Grouping of variations in the category item list and on the search result page
+- Sorting by item name in the category item list and on the search result page
+
+## v1.1.0 (2017-04-12)
+
+### Added
+
+- TemplateService: `isCategoryView` method added to check if current page is category page.
+- Support for new category logic in Ceres.
+
 ## v.1.0.4
 
 ### Fixed

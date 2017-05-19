@@ -9,6 +9,7 @@ use Plenty\Modules\Category\Contracts\CategoryRepositoryContract;
 use Plenty\Modules\Category\Models\Category;
 use Plenty\Repositories\Models\PaginatedResult;
 
+
 /**
  * Class CategoryService
  * @package IO\Services
@@ -27,6 +28,11 @@ class CategoryService
 	 */
 	private $webstoreConfig;
 
+    /**
+     * @var SessionStorageService
+     */
+    private $sessionStorageService;
+
 	// is set from controllers
 	/**
 	 * @var Category
@@ -36,16 +42,19 @@ class CategoryService
 	 * @var array
 	 */
 	private $currentCategoryTree = [];
+	
+	private $currentItem = [];
 
     /**
      * CategoryService constructor.
      * @param CategoryRepositoryContract $categoryRepository
      * @param WebstoreConfigurationService $webstoreConfig
      */
-	 public function __construct(CategoryRepositoryContract $categoryRepository, WebstoreConfigurationService $webstoreConfig)
+	 public function __construct(CategoryRepositoryContract $categoryRepository, WebstoreConfigurationService $webstoreConfig, SessionStorageService $sessionStorageService)
 	{
 		$this->categoryRepository    = $categoryRepository;
 		$this->webstoreConfig 		 = $webstoreConfig;
+        $this->sessionStorageService = $sessionStorageService;
 	}
 
 	/**
@@ -55,7 +64,7 @@ class CategoryService
 	public function setCurrentCategoryID(int $catID = 0)
 	{
 		$this->setCurrentCategory(
-			$this->categoryRepository->get($catID)
+			$this->categoryRepository->get($catID, $this->sessionStorageService->getLang())
 		);
 	}
 
@@ -78,7 +87,7 @@ class CategoryService
 		while($cat !== null)
 		{
 			$this->currentCategoryTree[$cat->level] = $cat;
-			$cat                                    = $this->categoryRepository->get($cat->parentCategoryId);
+			$cat                                    = $this->categoryRepository->get($cat->parentCategoryId, $this->sessionStorageService->getLang());
 		}
 	}
     
@@ -264,7 +273,17 @@ class CategoryService
         {
             $hierarchy = array_reverse( $hierarchy );
         }
+    
+        if(count($this->currentItem))
+        {
+            array_push( $hierarchy, $this->currentItem );
+        }
 
         return $hierarchy;
+    }
+    
+    public function setCurrentItem($itemNames)
+    {
+        $this->currentItem = $itemNames;
     }
 }

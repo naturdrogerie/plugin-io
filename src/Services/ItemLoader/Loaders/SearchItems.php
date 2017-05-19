@@ -11,13 +11,14 @@ use Plenty\Modules\Cloud\ElasticSearch\Lib\Processor\DocumentProcessor;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Query\Type\TypeInterface;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Search\Document\DocumentSearch;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Search\SearchInterface;
+use Plenty\Modules\Cloud\ElasticSearch\Lib\Source\Mutator\BuiltIn\LanguageMutator;
+use Plenty\Modules\Cloud\ElasticSearch\Lib\Sorting\MultipleSorting;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Sorting\SortingInterface;
 use Plenty\Modules\Item\Search\Filter\ClientFilter;
 use Plenty\Modules\Item\Search\Filter\VariationBaseFilter;
 use Plenty\Modules\Item\Search\Filter\SearchFilter;
 use Plenty\Plugin\Application;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\ElasticSearch;
-use Plenty\Modules\Cloud\ElasticSearch\Lib\Sorting\SingleSorting;
 
 class SearchItems implements ItemLoaderContract, ItemLoaderPaginationContract, ItemLoaderSortingContract
 {
@@ -26,7 +27,11 @@ class SearchItems implements ItemLoaderContract, ItemLoaderPaginationContract, I
      */
     public function getSearch()
     {
+        $languageMutator = pluginApp(LanguageMutator::class, ["languages" => [pluginApp(SessionStorageService::class)->getLang()]]);
+
         $documentProcessor = pluginApp(DocumentProcessor::class);
+        $documentProcessor->addMutator($languageMutator);
+
         return pluginApp(DocumentSearch::class, [$documentProcessor]);
     }
     
@@ -58,6 +63,15 @@ class SearchItems implements ItemLoaderContract, ItemLoaderPaginationContract, I
         /** @var VariationBaseFilter $variationFilter */
         $variationFilter = pluginApp(VariationBaseFilter::class);
         $variationFilter->isActive();
+    
+        if(isset($options['variationShowType']) && $options['variationShowType'] == 'main')
+        {
+            $variationFilter->isMain();
+        }
+        elseif(isset($options['variationShowType']) && $options['variationShowType'] == 'child')
+        {
+            $variationFilter->isChild();
+        }
     
         /**
          * @var SearchFilter $searchFilter
@@ -108,8 +122,11 @@ class SearchItems implements ItemLoaderContract, ItemLoaderPaginationContract, I
         
         if(isset($options['sorting']) && strlen($options['sorting']))
         {
-            $sorting = SortingBuilder::buildSorting($options['sorting']);
-            $sortingInterface = pluginApp(SingleSorting::class, [$sorting['path'], $sorting['order']]);
+            $sortingInterface = SortingBuilder::buildSorting($options['sorting']);
+            if($sortingInterface instanceof MultipleSorting)
+            {
+                $sortingInterface->add('_score', 'ASC');
+            }
         }
         
         return $sortingInterface;

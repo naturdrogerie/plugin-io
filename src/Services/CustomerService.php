@@ -15,6 +15,7 @@ use Plenty\Modules\Order\Contracts\OrderRepositoryContract;
 use IO\Services\SessionStorageService;
 use IO\Constants\SessionStorageKeys;
 use IO\Services\OrderService;
+use IO\Services\NotificationService;
 
 /**
  * Class CustomerService
@@ -82,7 +83,7 @@ class CustomerService
      * @param null $deliveryAddressData
      * @return Contact
      */
-	public function registerCustomer(array $contactData, $billingAddressData = null, $deliveryAddressData = null):Contact
+	public function registerCustomer(array $contactData, $billingAddressData = null, $deliveryAddressData = null)
 	{
         /**
          * @var BasketService $basketService
@@ -107,7 +108,7 @@ class CustomerService
         
         $contact = $this->createContact($contactData);
         
-        if($contact->id > 0)
+        if(!is_null($contact) && $contact->id > 0)
         {
             //Login
             pluginApp(AuthenticationService::class)->loginWithContactId($contact->id, (string)$contactData['password']);
@@ -131,29 +132,29 @@ class CustomerService
                 //$this->sessionStorage->setSessionValue(SessionStorageKeys::DELIVERY_ADDRESS_ID, $newDeliveryAddress->id);
                 $basketService->setDeliveryAddressId($newDeliveryAddress->id);
             }
-        }
-		
-		if($billingAddressData !== null)
-		{
-            $newBillingAddress = $this->createAddress($billingAddressData, AddressType::BILLING);
-            //$this->sessionStorage->setSessionValue(SessionStorageKeys::BILLING_ADDRESS_ID, $newBillingAddress->id);
-            $basketService->setBillingAddressId($newBillingAddress->id);
-            
-			if($deliveryAddressData === null)
-			{
-                $newDeliveryAddress = $this->createAddress($billingAddressData, AddressType::DELIVERY);
+    
+            if($billingAddressData !== null)
+            {
+                $newBillingAddress = $this->createAddress($billingAddressData, AddressType::BILLING);
+                //$this->sessionStorage->setSessionValue(SessionStorageKeys::BILLING_ADDRESS_ID, $newBillingAddress->id);
+                $basketService->setBillingAddressId($newBillingAddress->id);
+        
+                if($deliveryAddressData === null)
+                {
+                    $newDeliveryAddress = $this->createAddress($billingAddressData, AddressType::DELIVERY);
+                    //$this->sessionStorage->setSessionValue(SessionStorageKeys::DELIVERY_ADDRESS_ID, $newDeliveryAddress->id);
+                    $basketService->setDeliveryAddressId($newDeliveryAddress->id);
+                }
+            }
+    
+            if($deliveryAddressData !== null)
+            {
+                $newDeliveryAddress = $this->createAddress($deliveryAddressData, AddressType::DELIVERY);
                 //$this->sessionStorage->setSessionValue(SessionStorageKeys::DELIVERY_ADDRESS_ID, $newDeliveryAddress->id);
                 $basketService->setDeliveryAddressId($newDeliveryAddress->id);
-			}
-		}
-
-		if($deliveryAddressData !== null)
-		{
-            $newDeliveryAddress = $this->createAddress($deliveryAddressData, AddressType::DELIVERY);
-            //$this->sessionStorage->setSessionValue(SessionStorageKeys::DELIVERY_ADDRESS_ID, $newDeliveryAddress->id);
-            $basketService->setDeliveryAddressId($newDeliveryAddress->id);
-		}
-
+            }
+        }
+        
 		return $contact;
 	}
 
@@ -162,9 +163,20 @@ class CustomerService
      * @param array $contactData
      * @return Contact
      */
-	public function createContact(array $contactData):Contact
+	public function createContact(array $contactData)
 	{
-		$contact = $this->contactRepository->createContact($contactData);
+	    $contact = null;
+	    $contactData['checkForExistingEmail'] = true;
+	    
+	    try
+        {
+            $contact = $this->contactRepository->createContact($contactData);
+        }
+        catch(\Exception $e)
+        {
+            $contact = 'Die angegebene E-Mail-Adresse existiert bereits';
+        }
+		
 		return $contact;
 	}
 
@@ -274,6 +286,9 @@ class CustomerService
      */
 	public function createAddress(array $addressData, int $type):Address
 	{
+        if (isset($addressData['stateId']) && empty($addressData['stateId'])) {
+            $addressData['stateId'] = null;
+        }
         if($this->getContactId() > 0)
         {
             $addressData['options'] = $this->buildAddressEmailOptions([], false);
@@ -346,6 +361,9 @@ class CustomerService
      */
 	public function updateAddress(int $addressId, array $addressData, int $type):Address
 	{
+        if (isset($addressData['stateId']) && empty($addressData['stateId'])) {
+            $addressData['stateId'] = null;
+        }
 		return $this->contactAddressRepository->updateAddress($addressData, $addressId, $this->getContactId(), $type);
 	}
 
@@ -370,14 +388,16 @@ class CustomerService
      * Get a list of orders for the current contact
      * @param int $page
      * @param int $items
+     * @param array $filters
      * @return array|\Plenty\Repositories\Models\PaginatedResult
      */
-	public function getOrders(int $page = 1, int $items = 10)
+	public function getOrders(int $page = 1, int $items = 10, array $filters = [])
 	{
 		return pluginApp(OrderService::class)->getOrdersForContact(
 		    $this->getContactId(),
             $page,
-            $items
+            $items,
+            $filters
         );
 	}
 

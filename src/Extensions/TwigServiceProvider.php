@@ -23,6 +23,7 @@ use IO\Services\LocalizationService;
 use IO\Services\CouponService;
 use IO\Services\LegalInformationService;
 use IO\Services\SalesPriceService;
+use IO\Services\ItemLastSeenService;
 
 /**
  * Provide services and helper functions to twig engine
@@ -94,9 +95,10 @@ class TwigServiceProvider extends Twig_Extension
                 "localization"      => pluginApp( LocalizationService::class ),
                 "coupon"            => pluginApp( CouponService::class ),
                 "legalInformation"  => pluginApp( LegalInformationService::class ),
-                "salesPrice"        => pluginApp( SalesPriceService::class )
-            ],
-            "performance"       => pluginApp( PerformanceTracker::class)
+                "salesPrice"        => pluginApp( SalesPriceService::class ),
+                "performance"       => pluginApp( PerformanceTracker::class),
+                "lastSeen"          => pluginApp( ItemLastSeenService::class )
+            ]
         ];
     }
 }
