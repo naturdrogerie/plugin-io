@@ -47,6 +47,6 @@ class PerformanceTracker
      */
     public function save()
     {
-        $this->getLogger('Performance')->info('result', $this->trackedMap);
+        $this->getLogger('Performance')->info('IO::performance.result', $this->trackedMap);
     }
 }
