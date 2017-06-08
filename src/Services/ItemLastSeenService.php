@@ -11,7 +11,8 @@ use IO\Services\SessionStorageService;
  */
 class ItemLastSeenService
 {
-    const MAX_COUNT = 9;
+    const MAX_COUNT = 12;
+    private $countConfig;
     private $sessionStorage;
     
     /**
@@ -20,15 +21,13 @@ class ItemLastSeenService
      */
     public function __construct(SessionStorageService $sessionStorage)
     {
+        /**
+         * @var TemplateConfigService $templateConfigService
+         */
+        $templateConfigService = pluginApp(TemplateConfigService::class);
+
+        $this->countConfig = $templateConfigService->get('item.lists.last_seen');
         $this->sessionStorage = $sessionStorage;
-    }
-    
-    /**
-     * @param int $maxCount
-     */
-    public function setLastSeenMaxCount(int $maxCount)
-    {
-        $this->sessionStorage->setSessionValue(SessionStorageKeys::LAST_SEEN_MAX_COUNT, $maxCount);
     }
     
     /**
@@ -36,10 +35,9 @@ class ItemLastSeenService
      */
     public function setLastSeenItem(int $variationId)
     {
-        $maxCount = $this->sessionStorage->getSessionValue(SessionStorageKeys::LAST_SEEN_MAX_COUNT);
-        if(is_null($maxCount))
+        if(is_null($this->countConfig))
         {
-            $maxCount = self::MAX_COUNT;
+            $this->countConfig = self::MAX_COUNT;
         }
         
         $lastSeenItems = $this->sessionStorage->getSessionValue(SessionStorageKeys::LAST_SEEN_ITEMS);
@@ -51,7 +49,7 @@ class ItemLastSeenService
         
         if(!in_array($variationId, $lastSeenItems))
         {
-            if(count($lastSeenItems) >= $maxCount)
+            if(count($lastSeenItems) >= $this->countConfig)
             {
                 array_pop($lastSeenItems);
             }
