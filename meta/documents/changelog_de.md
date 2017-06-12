@@ -1,14 +1,44 @@
 # Release Notes für IO
 
+## v.1.2.5 (2017-06-08)
+
+### Hinzugefügt
+
+- Lieferländer und Webshop-Einstellungen werden aus dem Cache geladen, um die Performance zu verbessern.
+
+### Behoben
+
+- Es wurde ein Fehler behoben, der dazu führte, dass manchmal keine Standardlieferland gesetzt wurde. 
+
+## v.1.2.4 (2017-06-02)
+
+### Hinzugefügt
+
+- Es wurde ein Twig-Filter hinzugefügt, um Objekte anhand eines Keys zu sortieren.
+- Validierung von Feldern des Adressformulars für das Lieferland **Vereinigtes Königreich**
+
+## v.1.2.3 (2017-05-19)
+
+### Hinzugefügt
+
+- Eingaben für Geburtsdatum und Umsatzsteuer-ID können jetzt an der Adresse gespeichert werden.
+- Twig-Filter für Variantenbilder hinzugefügt.
+- Konfigurationsmöglichkeit für zugehöriges Template-Plugin.
+- Validierung von Adresseingaben anhand der Konfiguration des Template-Plugins.
+
+### Behoben
+
+- Artikel, für die keine Texte in der ausgewählten Shop-Sprache gespeichert wurden, werden nicht mehr zurückgeliefert.
+
 ## v1.2.2 (2017-05-11)
 
-## Behoben
+### Behoben
 
 - Die Vorschläge der Autovervollständigung von Suchbegriffen berücksichtigen nun die Einstellung der Variantengruppierung.
 
 ## v1.2.1 (2017-05-08)
 
-## Behoben
+### Behoben
 
 - Kleinere Bugfixes und Verbesserungen.
 

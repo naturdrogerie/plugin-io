@@ -1,5 +1,35 @@
 # Release Notes for IO
 
+## v.1.2.5 (2017-06-08)
+
+### Added
+
+- Countries of delivery and online store settings are now loaded from the cache to improve the overall performance.
+
+### Fixed
+
+- Due to an error the default country of delivery has not been set. This has been fixed.
+
+## v.1.2.4 (2017-06-02)
+
+### Added
+
+- A Twig filter for sorting an object by a given key has been added.
+- Validation of the address form for the delivery country **United Kingdom**
+
+## v.1.2.3 (2017-05-19)
+
+### Added
+
+- The date of birth and the VAT number entered during the address input will now be saved with the address.
+- Added a twig filter for variation images.
+- A corresponding template plugin can now be specified in the configuration of IO.
+- Address validation based on the specified template plugin.
+
+### Fixed
+
+- Items will only be returned when item texts have been saved in the selected store language.
+
 ## v1.2.2 (2017-05-11)
 
 ## Fixed

@@ -3,6 +3,8 @@
 namespace IO\Services;
 
 use IO\Models\LocalizedOrder;
+use IO\Validators\Customer\ContactValidator;
+use IO\Validators\Customer\AddressValidator;
 use Plenty\Modules\Account\Address\Models\AddressOption;
 use Plenty\Modules\Account\Contact\Contracts\ContactRepositoryContract;
 use Plenty\Modules\Account\Contact\Contracts\ContactAddressRepositoryContract;
@@ -286,22 +288,25 @@ class CustomerService
      */
 	public function createAddress(array $addressData, int $type):Address
 	{
-        if (isset($addressData['stateId']) && empty($addressData['stateId'])) {
+        AddressValidator::validateOrFail($type, $addressData);
+        
+        if (isset($addressData['stateId']) && empty($addressData['stateId']))
+        {
             $addressData['stateId'] = null;
         }
         if($this->getContactId() > 0)
         {
-            $addressData['options'] = $this->buildAddressEmailOptions([], false);
+            $addressData['options'] = $this->buildAddressEmailOptions([], false, $addressData);
             return $this->contactAddressRepository->createAddress($addressData, $this->getContactId(), $type);
         }
 		else
         {
-            $addressData['options'] = $this->buildAddressEmailOptions([], true);
+            $addressData['options'] = $this->buildAddressEmailOptions([], true, $addressData);
             return $this->createGuestAddress($addressData, $type);
         }
 	}
 	
-	private function buildAddressEmailOptions(array $options = [], $isGuest = false)
+	private function buildAddressEmailOptions(array $options = [], $isGuest = false, $addressData = [])
     {
         if($isGuest)
         {
@@ -322,6 +327,25 @@ class CustomerService
                 'typeId' => AddressOption::TYPE_EMAIL,
                 'value' => $email
             ];
+        }
+        
+        if(count($addressData))
+        {
+            if(isset($addressData['vatNumber']))
+            {
+                $options[] = [
+                    'typeId' => AddressOption::TYPE_VAT_NUMBER,
+                    'value'  => $addressData['vatNumber']
+                ];
+            }
+            
+            if(isset($addressData['birthday']))
+            {
+                $options[] = [
+                    'typeId' => AddressOption::TYPE_BIRTHDAY,
+                    'value'  => $addressData['birthday']
+                ];
+            }
         }
         
         return $options;
@@ -361,6 +385,8 @@ class CustomerService
      */
 	public function updateAddress(int $addressId, array $addressData, int $type):Address
 	{
+        AddressValidator::validateOrFail($type, $addressData);
+	    
         if (isset($addressData['stateId']) && empty($addressData['stateId'])) {
             $addressData['stateId'] = null;
         }
