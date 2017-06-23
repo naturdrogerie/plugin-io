@@ -45,7 +45,7 @@ class SalesPriceService
         $salesPriceSearchRequest->customerClassId = $contact->classId;
         $salesPriceSearchRequest->plentyId = $this->app->getPlentyId();
         $salesPriceSearchRequest->quantity = $quantity;
-        $salesPriceSearchRequest->referrerId = 1;
+        $salesPriceSearchRequest->referrerId = 2;
         $salesPriceSearchRequest->type = $type;
     
         /**
