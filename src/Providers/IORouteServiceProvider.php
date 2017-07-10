@@ -44,8 +44,8 @@ class IORouteServiceProvider extends RouteServiceProvider
             $api->resource('io/variations', 'VariationResource');
             $api->resource('io/item/availability', 'AvailabilityResource');
             $api->resource('io/item/condition', 'ItemConditionResource');
-            $api->get('io/item/search', 'ItemSearchResource@index');
-            $api->get('io/item/search/autocomplete', 'ItemSearchAutocompleteResource@index');
+//            $api->get('io/item/search', 'ItemSearchResource@index');
+//            $api->get('io/item/search/autocomplete', 'ItemSearchAutocompleteResource@index');
 			$api->resource('io/customer/bank_data', 'ContactBankResource');
 			$api->resource('io/coupon', 'CouponResource');
             $api->resource('io/guest', 'GuestResource');
@@ -112,17 +112,17 @@ class IORouteServiceProvider extends RouteServiceProvider
                 ->where('orderId', '[0-9]+');
         }
 
-        if ( in_array("search", $enabledRoutes) || in_array("all", $enabledRoutes) )
+        /*if ( in_array("search", $enabledRoutes) || in_array("all", $enabledRoutes) )
         {
             $router->get('search', 'IO\Controllers\ItemSearchController@showSearch');
-        }
+        }*/
 
-        if ( in_array("home", $enabledRoutes) || in_array("all", $enabledRoutes) ) {
+        /*if ( in_array("home", $enabledRoutes) || in_array("all", $enabledRoutes) ) {
             //homepage route
             $router->get('', 'IO\Controllers\HomepageController@showHomepage');
-        }
+        }*/
 
-        if ( in_array("cancellation-rights", $enabledRoutes) || in_array("all", $enabledRoutes) ) {
+        /*if ( in_array("cancellation-rights", $enabledRoutes) || in_array("all", $enabledRoutes) ) {
             //cancellation rights page
             $router->get('cancellation-rights', 'IO\Controllers\StaticPagesController@showCancellationRights');
         }
@@ -140,37 +140,37 @@ class IORouteServiceProvider extends RouteServiceProvider
         if ( in_array("gtc", $enabledRoutes) || in_array("all", $enabledRoutes) ) {
             //terms and conditions page
             $router->get('gtc', 'IO\Controllers\StaticPagesController@showTermsAndConditions');
-        }
-        
+        }*/
+
 		/*
 		 * ITEM ROUTES
 		 */
-        if ( in_array("item", $enabledRoutes) || in_array("all", $enabledRoutes) )
+        /*if ( in_array("item", $enabledRoutes) || in_array("all", $enabledRoutes) )
         {
             $router->get('{itemId}_{variationId?}', 'IO\Controllers\ItemController@showItemWithoutName')
                    ->where('itemId', '[0-9]+')
                    ->where('variationId', '[0-9]+');
-            
+
             $router->get('{slug}_{itemId}_{variationId?}', 'IO\Controllers\ItemController@showItem')
                    ->where('slug', '[^_]+')
                    ->where('itemId', '[0-9]+')
                    ->where('variationId', '[0-9]+');
-            
+
             //old webshop routes mapping
             $router->get('{slug}a-{itemId}', 'IO\Controllers\ItemController@showItemOld')
                    ->where('slug', '.*')
                    ->where('itemId', '[0-9]+');
-            
+
             $router->get('a-{itemId}', 'IO\Controllers\ItemController@showItemFromAdmin')
                    ->where('itemId', '[0-9]+');
-        }
-        
+        }*/
+
         /*
 		 * CATEGORY ROUTES
 		 */
-        if ( in_array("category", $enabledRoutes) || in_array("all", $enabledRoutes) )
+        /*if ( in_array("category", $enabledRoutes) || in_array("all", $enabledRoutes) )
         {
             $router->get('{level1?}/{level2?}/{level3?}/{level4?}/{level5?}/{level6?}', 'IO\Controllers\CategoryController@showCategory');
-        }
+        }*/
 	}
 }
