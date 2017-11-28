@@ -7,6 +7,7 @@ use Plenty\Modules\Basket\Models\Basket;
 use Plenty\Modules\Basket\Models\BasketItem;
 use IO\Services\CheckoutService;
 use Plenty\Modules\Frontend\PaymentMethod\Contracts\FrontendPaymentMethodRepositoryContract;
+use Plenty\Modules\Frontend\Services\VatService;
 
 /**
  * Class OrderItemBuilder
@@ -19,13 +20,19 @@ class OrderItemBuilder
 	 */
 	private $checkoutService;
 
+    /**
+     * @var VatService
+     */
+	private $vatService;
+
 	/**
 	 * OrderItemBuilder constructor.
 	 * @param CheckoutService $checkoutService
 	 */
-	public function __construct(CheckoutService $checkoutService)
+	public function __construct(CheckoutService $checkoutService, VatService $vatService)
 	{
 		$this->checkoutService = $checkoutService;
+		$this->vatService = $vatService;
 	}
 
 	/**
@@ -38,21 +45,17 @@ class OrderItemBuilder
 	{
 		$currentLanguage = pluginApp(SessionStorageService::class)->getLang();
 		$orderItems      = [];
-		foreach($basket->basketItems as $basketItem)
-		{
-			//$basketItemName = $items[$basketItem->variationId]->itemDescription->name1;
-			$basketItemName = '';
-			foreach($items as $item)
-			{
-				if($basketItem->variationId == $item['variationId'])
-				{
-                    $basketItemName = $item['variation']['data']['texts']['name1'];
-				}
-			}
+        $maxVatRate      = 0;
 
-			array_push($orderItems, $this->basketItemToOrderItem($basketItem, (STRING)$basketItemName));
-		}
-
+        foreach($items as $item)
+        {
+            if($maxVatRate < $item['vat'])
+            {
+                $maxVatRate = $item['vat'];
+            }
+    
+            array_push($orderItems, $this->basketItemToOrderItem($item));
+        }
 
 		// add shipping costs
         $shippingCosts = [
@@ -60,8 +63,8 @@ class OrderItemBuilder
             "referrerId"    => $basket->basketItems->first()->referrerId,
             "quantity"      => 1,
             "orderItemName" => "shipping costs",
-            "countryVatId"  => 1, // TODO get country VAT id
-            "vatRate"       => 0, // FIXME get vat rate for shipping costs
+            "countryVatId"  => $this->vatService->getCountryVatId(),
+            "vatRate"       => $maxVatRate,
             "amounts"       => [
                 [
                     "currency"              => $this->checkoutService->getCurrency(),
@@ -79,8 +82,8 @@ class OrderItemBuilder
 			"referrerId"    => $basket->basketItems->first()->referrerId,
 			"quantity"      => 1,
 			"orderItemName" => "payment surcharge",
-			"countryVatId"  => 1, // TODO get country VAT id
-			"vatRate"       => 0, // FIXME get vat rate for shipping costs
+			"countryVatId"  => $this->vatService->getCountryVatId(),
+			"vatRate"       => $maxVatRate,
 			"amounts"       => [
 				[
 					"currency"           => $this->checkoutService->getCurrency(),
@@ -100,21 +103,56 @@ class OrderItemBuilder
 	 * @param string $basketItemName
 	 * @return array
 	 */
-	private function basketItemToOrderItem(BasketItem $basketItem, string $basketItemName):array
+	private function basketItemToOrderItem(array $basketItem):array
 	{
+        $basketItemProperties = [];
+        if(count($basketItem['basketItemOrderParams']))
+        {
+            foreach($basketItem['basketItemOrderParams'] as $property)
+            {
+                $basketItemProperty = [
+                    'propertyId' => $property['propertyId'],
+                    'value'      => $property['value']
+                ];
+                
+                $basketItemProperties[] = $basketItemProperty;
+            }
+        }
+        
+		$priceOriginal = $basketItem['variation']['data']['calculatedPrices']['default']['basePrice'];
+
+        $attributeTotalMarkup = 0;
+		if(isset($basketItem['attributeTotalMarkup']))
+		{
+            $attributeTotalMarkup = $basketItem['attributeTotalMarkup'];
+			//if($attributeTotalMarkup != 0)
+				//$priceOriginal -= $attributeTotalMarkup;
+        }
+        
+        $rebate = 0;
+        if(isset($basketItem['rebate']))
+		{
+			$rebate = $basketItem['rebate'];
+		}
+	    
 		return [
 			"typeId"            => OrderItemType::VARIATION,
-			"referrerId"        => $basketItem->referrerId,
-			"itemVariationId"   => $basketItem->variationId,
-			"quantity"          => $basketItem->quantity,
-			"orderItemName"     => $basketItemName,
-			"shippingProfileId" => $basketItem->shippingProfileId,
-			"countryVatId"      => 1, // TODO
-			"vatRate"           => $basketItem->vat,
+			"referrerId"        => $basketItem['referrerId'],
+			"itemVariationId"   => $basketItem['variationId'],
+			"quantity"          => $basketItem['quantity'],
+			"orderItemName"     => $basketItem['variation']['data']['texts']['name1'],
+			"shippingProfileId" => $basketItem['shippingProfileId'],
+			"countryVatId"      => $this->vatService->getCountryVatId(),
+			"vatRate"           => $basketItem['vat'],
+			//"vatField"			=> $basketItem->vatField,// TODO
+            "orderProperties"   => $basketItemProperties,
 			"amounts"           => [
 				[
 					"currency"           => $this->checkoutService->getCurrency(),
-					"priceOriginalGross" => $basketItem->price
+					"priceOriginalGross" => $priceOriginal,
+                    "surcharge" => $attributeTotalMarkup,
+					"rebate"	=> $rebate,
+					"isPercentage" => 1
 				]
 			]
 		];

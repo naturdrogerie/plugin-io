@@ -2,6 +2,7 @@
 
 namespace IO\Services;
 
+use IO\Builder\Order\OrderType;
 use IO\Models\LocalizedOrder;
 use IO\Validators\Customer\ContactValidator;
 use IO\Validators\Customer\AddressValidator;
@@ -12,12 +13,18 @@ use Plenty\Modules\Account\Address\Contracts\AddressRepositoryContract;
 use Plenty\Modules\Account\Contact\Models\Contact;
 use IO\Builder\Order\AddressType;
 use Plenty\Modules\Account\Address\Models\Address;
+use Plenty\Modules\Authorization\Services\AuthHelper;
 use IO\Helper\UserSession;
+use Plenty\Modules\Frontend\Events\FrontendCustomerAddressChanged;
 use Plenty\Modules\Order\Contracts\OrderRepositoryContract;
 use IO\Services\SessionStorageService;
 use IO\Constants\SessionStorageKeys;
 use IO\Services\OrderService;
 use IO\Services\NotificationService;
+use IO\Services\CustomerPasswordResetService;
+use Plenty\Plugin\Events\Dispatcher;
+use Plenty\Modules\Account\Contact\Contracts\ContactClassRepositoryContract;
+
 
 /**
  * Class CustomerService
@@ -45,13 +52,13 @@ class CustomerService
 	 * @var UserSession
 	 */
 	private $userSession = null;
-    
+
     /**
      * CustomerService constructor.
      * @param ContactRepositoryContract $contactRepository
      * @param ContactAddressRepositoryContract $contactAddressRepository
      * @param AddressRepositoryContract $addressRepository
-     * @param \IO\Services\AuthenticationService $authService
+     * @param \IO\Services\SessionStorageService $sessionStorage
      */
 	public function __construct(
 		ContactRepositoryContract $contactRepository,
@@ -77,6 +84,43 @@ class CustomerService
 		}
 		return $this->userSession->getCurrentContactId();
 	}
+	
+	public function getContactClassData($contactClassId)
+    {
+        /** @var ContactClassRepositoryContract $contactClassRepo */
+        $contactClassRepo = pluginApp(ContactClassRepositoryContract::class);
+    
+        /** @var AuthHelper $authHelper */
+        $authHelper = pluginApp(AuthHelper::class);
+    
+        $contactClass = $authHelper->processUnguarded( function() use ($contactClassRepo, $contactClassId)
+        {
+            return $contactClassRepo->findContactClassDataById($contactClassId);
+        });
+        
+        return $contactClass;
+    }
+    
+    public function getContactClassMinimumOrderQuantity()
+    {
+        $contact = $this->getContact();
+    
+        if($contact instanceof Contact)
+        {
+            $contactClassId = $contact->classId;
+        
+            $contactClass = $this->getContactClassData($contactClassId);
+        
+            if( is_array($contactClass) && count($contactClass) && isset($contactClass['minItemQuantity']))
+            {
+                return (int)$contactClass['minItemQuantity'];
+            }
+        
+            return 0;
+        }
+    
+        return 0;
+    }
 
     /**
      * Create a contact with addresses if specified
@@ -188,6 +232,21 @@ class CustomerService
 		return null;
 	}
 
+	public function getContactClassId()
+    {
+        $contact = $this->getContact();
+        if ( $contact !== null && $contact->classId !== null )
+        {
+            return $contact->classId;
+        }
+        else
+        {
+            /** @var WebstoreConfigurationService $webstoreConfigService */
+            $webstoreConfigService = pluginApp(WebstoreConfigurationService::class);
+            return $webstoreConfigService->getWebstoreConfig()->defaultCustomerClassId;
+        }
+    }
+
     /**
      * Update a contact
      * @param array $contactData
@@ -202,6 +261,44 @@ class CustomerService
 
 		return null;
 	}
+	
+	public function updatePassword($newPassword, $contactId = 0, $hash='')
+    {
+        /**
+         * @var CustomerPasswordResetService $customerPasswordResetService
+         */
+        $customerPasswordResetService = pluginApp(CustomerPasswordResetService::class);
+        
+        if((int)$this->getContactId() <= 0 && strlen($hash) && $customerPasswordResetService->checkHash($contactId, $hash))
+        {
+            /** @var AuthHelper $authHelper */
+            $authHelper = pluginApp(AuthHelper::class);
+            $contactRepo = $this->contactRepository;
+            
+            $result = $authHelper->processUnguarded( function() use ($newPassword, $contactId, $contactRepo)
+            {
+                return $contactRepo->updateContact([
+                                                        'changeOnlyPassword' => true,
+                                                        'password'           => $newPassword
+                                                   ],
+                                                   (int)$contactId);
+            });
+            
+            if($result instanceof Contact && (int)$result->id > 0)
+            {
+                $customerPasswordResetService->deleteHash($contactId);
+            }
+        }
+        else
+        {
+            $result = $this->updateContact([
+                                                'changeOnlyPassword' => true,
+                                                'password'           => $newPassword
+                                           ]);
+        }
+        
+        return $result;
+    }
 
     /**
      * List the addresses of a contact
@@ -344,6 +441,32 @@ class CustomerService
                     'value'  => $addressData['birthday']
                 ];
             }
+
+            if(isset($addressData['title']))
+            {
+                $options[] = [
+                    'typeId' => AddressOption::TYPE_TITLE,
+                    'value'  => $addressData['title']
+                ];
+            }
+
+            if(isset($addressData['telephone']))
+            {
+                $options[] = [
+                    'typeId' => AddressOption::TYPE_TELEPHONE,
+                    'value'  => $addressData['telephone']
+                ];
+            }
+            
+            if(isset($addressData['address2']) && (strtoupper($addressData['address1']) == 'PACKSTATION' || strtoupper($addressData['address1']) == 'POSTFILIALE') && isset($addressData['address3']))
+            {
+                $options[] =
+                [
+                    'typeId' => 6,
+                    'value' => $addressData['address3']
+                ];
+            }
+            
         }
         
         return $options;
@@ -397,10 +520,24 @@ class CustomerService
 
         if((int)$this->getContactId() > 0)
         {
-            return $this->contactAddressRepository->updateAddress($addressData, $addressId, $this->getContactId(), $type);
+            $addressData['options'] = $this->buildAddressEmailOptions([], false, $addressData);
+            $newAddress = $this->contactAddressRepository->updateAddress($addressData, $addressId, $this->getContactId(), $type);
         }
-        //case for guests
-        return $this->addressRepository->updateAddress($addressData, $addressId);
+        else
+        {
+            //case for guests
+            $addressData['options'] = $this->buildAddressEmailOptions([], true, $addressData);
+            $newAddress = $this->addressRepository->updateAddress($addressData, $addressId);
+        }
+        
+        
+
+        //fire public event
+        /** @var Dispatcher $pluginEventDispatcher */
+        $pluginEventDispatcher = pluginApp(Dispatcher::class);
+        $pluginEventDispatcher->fire(FrontendCustomerAddressChanged::class);
+
+        return $newAddress;
     }
 
     /**
@@ -436,6 +573,30 @@ class CustomerService
             $filters
         );
 	}
+	
+	public function hasReturns()
+    {
+        $returns = $this->getReturns(1, 1, [], false);
+        if(count($returns->getResult()))
+        {
+            return true;
+        }
+        
+        return false;
+    }
+	
+	public function getReturns(int $page = 1, int $items = 10, array $filters = [], $wrapped = true)
+    {
+        $filters['orderType'] = OrderType::RETURNS;
+        
+        return pluginApp(OrderService::class)->getOrdersForContact(
+            $this->getContactId(),
+            $page,
+            $items,
+            $filters,
+            $wrapped
+        );
+    }
 
     /**
      * Get the last order created by the current contact

@@ -8,12 +8,14 @@ use IO\Services\SessionStorageService;
 use IO\Builder\Sorting\SortingBuilder;
 use IO\Services\ItemLoader\Contracts\ItemLoaderSortingContract;
 use IO\Services\TemplateConfigService;
+use IO\Services\PriceDetectService;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Processor\DocumentProcessor;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Query\Type\TypeInterface;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Search\Document\DocumentSearch;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Search\SearchInterface;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Sorting\SingleSorting;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Source\Mutator\BuiltIn\LanguageMutator;
+use Plenty\Modules\Item\Search\Mutators\ImageMutator;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Sorting\MultipleSorting;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Sorting\SortingInterface;
 use Plenty\Modules\Item\Search\Filter\ClientFilter;
@@ -22,6 +24,7 @@ use Plenty\Modules\Item\Search\Filter\SearchFilter;
 use Plenty\Modules\Item\Search\Filter\TextFilter;
 use Plenty\Plugin\Application;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\ElasticSearch;
+use Plenty\Modules\Item\Search\Filter\SalesPriceFilter;
 
 class SearchItems implements ItemLoaderContract, ItemLoaderPaginationContract, ItemLoaderSortingContract
 {
@@ -31,9 +34,12 @@ class SearchItems implements ItemLoaderContract, ItemLoaderPaginationContract, I
     public function getSearch()
     {
         $languageMutator = pluginApp(LanguageMutator::class, ["languages" => [pluginApp(SessionStorageService::class)->getLang()]]);
+        $imageMutator = pluginApp(ImageMutator::class);
+        $imageMutator->addClient(pluginApp(Application::class)->getPlentyId());
 
         $documentProcessor = pluginApp(DocumentProcessor::class);
         $documentProcessor->addMutator($languageMutator);
+        $documentProcessor->addMutator($imageMutator);
 
         return pluginApp(DocumentSearch::class, [$documentProcessor]);
     }
@@ -66,7 +72,7 @@ class SearchItems implements ItemLoaderContract, ItemLoaderPaginationContract, I
         /** @var VariationBaseFilter $variationFilter */
         $variationFilter = pluginApp(VariationBaseFilter::class);
         $variationFilter->isActive();
-    
+
         if(isset($options['variationShowType']) && $options['variationShowType'] == 'main')
         {
             $variationFilter->isMain();
@@ -90,7 +96,8 @@ class SearchItems implements ItemLoaderContract, ItemLoaderPaginationContract, I
             }
             else
             {
-                $searchFilter->setSearchString($options['query'], $lang, $searchType);
+                $searchFilter->setSearchString($options['query'], $lang, $searchType, ElasticSearch::OR_OPERATOR);
+                $searchFilter->setVariationNumber($options['query']);
             }
         }
     
@@ -136,12 +143,25 @@ class SearchItems implements ItemLoaderContract, ItemLoaderPaginationContract, I
         
             $textFilter->hasNameInLanguage($textFilterLanguage, $textFilterType);
         }
+    
+        /**
+         * @var PriceDetectService $priceDetectService
+         */
+        $priceDetectService = pluginApp(PriceDetectService::class);
+        $priceIds = $priceDetectService->getPriceIdsForCustomer();
+    
+        /**
+         * @var SalesPriceFilter $priceFilter
+         */
+        $priceFilter = pluginApp(SalesPriceFilter::class);
+        $priceFilter->hasAtLeastOnePrice($priceIds);
         
         return [
             $clientFilter,
             $variationFilter,
             $searchFilter,
-            $textFilter
+            $textFilter,
+            $priceFilter
         ];
     }
     

@@ -4,6 +4,7 @@ namespace IO\Controllers;
 use IO\Helper\CategoryKey;
 use IO\Services\CategoryService;
 use IO\Services\ItemLastSeenService;
+use IO\Services\ItemLoader\Loaders\CrossSellingItems;
 use IO\Services\ItemService;
 use IO\Services\ItemLoader\Loaders\SingleItem;
 use IO\Services\ItemLoader\Loaders\SingleItemAttributes;
@@ -35,7 +36,6 @@ class ItemController extends ItemLoaderController
 	)
 	{
         $loaderOptions = [];
-        $isSalable = false;
         $itemService = pluginApp(ItemService::class);
 
         if((int)$variationId > 0)
@@ -45,36 +45,18 @@ class ItemController extends ItemLoaderController
         elseif($itemId > 0)
         {
             $loaderOptions['itemId'] = $itemId;
-            $variationIds = $itemService->getVariationIds($itemId);
-
-            if(count($variationIds) > 0)
-            {
-                $variationId = $variationIds[0];
-                $loaderOptions['variationId'] = $variationId;
-            }
         }
-
-        if($variationId > 0)
-        {
-            $isSalable = $itemService->getVariationIsSalable($variationId);
-        }
+        
+        $loaderOptions['crossSellingItemId'] = $itemId;
 
         $attributeMap = $itemService->getVariationAttributeMap($itemId);
         $attributeNameMap = $itemService->getAttributeNameMap($itemId);
-
-        if($isSalable)
-        {
-            if(count($attributeMap) > 0)
-            {
-                return pluginApp(Response::class)->redirectTo($attributeMap[0]['url'] . "_" . $attributeMap[0]['variationId']);
-            }
-        }
 
         $templateContainer = $this->buildTemplateContainer("tpl.item", $loaderOptions);
 
         /** @var ItemLoaderService $loaderService */
         $loaderService = $templateContainer->getTemplateData()['itemLoader'];
-        $loaderService->setLoaderClassList([SingleItem::class, SingleItemAttributes::class]);
+        $loaderService->setLoaderClassList(["single" => [SingleItem::class, SingleItemAttributes::class], "multi" => [CrossSellingItems::class]]);
 
         $itemResult = $loaderService->load();
 
@@ -118,7 +100,7 @@ class ItemController extends ItemLoaderController
             }
 
             $templateContainer->setTemplateData(
-                array_merge(['item' => $itemResult, 'attributeNameMap' => $attributeNameMap, 'variations' => $attributeMap, 'salable' => !$isSalable], $templateContainer->getTemplateData(), ['http_host' => $_SERVER['HTTP_HOST']])
+                array_merge(['item' => $itemResult, 'attributeNameMap' => $attributeNameMap, 'variations' => $attributeMap], $templateContainer->getTemplateData(), ['http_host' => $_SERVER['HTTP_HOST']])
             );
 
             return $this->renderTemplateContainer($templateContainer);

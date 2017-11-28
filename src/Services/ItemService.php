@@ -5,6 +5,7 @@ use IO\Builder\Item\Fields\ItemCrossSellingFields;
 use IO\Builder\Item\Fields\ItemDescriptionFields;
 use IO\Builder\Item\Fields\VariationAttributeValueFields;
 use IO\Builder\Item\Fields\VariationBaseFields;
+use IO\Builder\Item\Fields\VariationRetailPriceFields;
 use IO\Builder\Item\Fields\VariationStockFields;
 use IO\Builder\Item\ItemColumnBuilder;
 use IO\Builder\Item\ItemFilterBuilder;
@@ -13,6 +14,9 @@ use IO\Builder\Item\Params\ItemColumnsParams;
 use IO\Constants\CrossSellingType;
 use IO\Constants\ItemConditionTexts;
 use IO\Constants\Language;
+use IO\Services\ItemLoader\Services\ItemLoaderService;
+use IO\Services\ItemLoader\Loaders\Items;
+use IO\Extensions\Filters\ItemImagesFilter;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\ElasticSearch;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Processor\DocumentProcessor;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Search\Document\DocumentSearch;
@@ -30,6 +34,9 @@ use Plenty\Modules\Item\Search\Filter\ClientFilter;
 use Plenty\Modules\Item\Search\Filter\SearchFilter;
 use Plenty\Modules\Item\Search\Filter\VariationBaseFilter;
 use Plenty\Plugin\Application;
+use IO\Services\TemplateConfigService;
+use Plenty\Plugin\Events\Dispatcher;
+
 
 /**
  * Class ItemService
@@ -51,6 +58,11 @@ class ItemService
 	 * SessionStorageService
 	 */
 	private $sessionStorage;
+
+    /**
+     * @var array
+     */
+	private $additionalItemSortingMap = [];
 
 	/**
 	 * ItemService constructor.
@@ -84,13 +96,13 @@ class ItemService
 		/** @var DocumentSearch $documentSearch */
 		$documentSearch = pluginApp(DocumentSearch::class, [$documentProcessor]);
 
-		$attributeProcessor = pluginApp(AttributeValueListAggregationProcessor::class);
-		$attributeSearch    = pluginApp(AttributeValueListAggregation::class, [$attributeProcessor]);
+		//$attributeProcessor = pluginApp(AttributeValueListAggregationProcessor::class);
+		//$attributeSearch    = pluginApp(AttributeValueListAggregation::class, [$attributeProcessor]);
 
 		/** @var VariationElasticSearchSearchRepositoryContract $elasticSearchRepo */
 		$elasticSearchRepo = pluginApp(VariationElasticSearchSearchRepositoryContract::class);
 		$elasticSearchRepo->addSearch($documentSearch);
-		$elasticSearchRepo->addSearch($attributeSearch);
+		//$elasticSearchRepo->addSearch($attributeSearch);
 
 		/** @var ClientFilter $clientFilter */
 		$clientFilter = pluginApp(ClientFilter::class);
@@ -164,14 +176,14 @@ class ItemService
 		$documentProcessor = pluginApp(DocumentProcessor::class);
 		$documentSearch    = pluginApp(DocumentSearch::class, [$documentProcessor]);
 
-		$attributeProcessor = pluginApp(AttributeValueListAggregationProcessor::class);
-		$attributeSearch    = pluginApp(AttributeValueListAggregation::class, [$attributeProcessor]);
+		//$attributeProcessor = pluginApp(AttributeValueListAggregationProcessor::class);
+		//$attributeSearch    = pluginApp(AttributeValueListAggregation::class, [$attributeProcessor]);
 
 
 		/** @var VariationElasticSearchSearchRepositoryContract $elasticSearchRepo */
 		$elasticSearchRepo = pluginApp(VariationElasticSearchSearchRepositoryContract::class);
 		$elasticSearchRepo->addSearch($documentSearch);
-		$elasticSearchRepo->addSearch($attributeSearch);
+		//$elasticSearchRepo->addSearch($attributeSearch);
 
 		/** @var ClientFilter $clientFilter */
 		$clientFilter = pluginApp(ClientFilter::class);
@@ -321,15 +333,43 @@ class ItemService
 
     /**
      * @param int $variationId
+     * @param string $imageAccessor
      * @return string
      */
-    public function getVariationImage(int $variationId = 0):string
+    public function getVariationImage(int $variationId = 0, string $imageAccessor = 'urlPreview'):string
     {
-        $variation = $this->getVariation($variationId);
+        /**
+         * @var ItemLoaderService $itemLoaderService
+         */
+        $itemLoaderService = pluginApp(ItemLoaderService::class);
+        
+        $itemLoaderService
+            ->setLoaderClassList([Items::class])
+            ->setOptions(['variationIds' => [$variationId]])
+            ->setResultFields(['images']);
+        
+        $variation = $itemLoaderService->load();
 
-        if(is_array($variation) && strlen($variation['documents'][0]['data']['images']['item'][0]['path']))
+        if(is_array($variation) && count($variation['documents']))
         {
-            return $variation['documents'][0]['data']['images']['item'][0]['path'];
+            $itemImageFilter = pluginApp(ItemImagesFilter::class);
+            $variationImages = $itemImageFilter->getItemImages($variation['documents'][0]['data']['images'], $imageAccessor);
+            $variationImage = [];
+
+            foreach ($variationImages as $image)
+            {
+                if(!count($variationImage) || $variationImage['position'] > $image['position'])
+                {
+                    $variationImage = $image;
+                }
+            }
+
+            if(!is_null($variationImage['url']))
+            {
+                return $variationImage['url'];
+            }
+
+            return '';
         }
 
         return '';
@@ -400,29 +440,43 @@ class ItemService
 
 			/** @var ItemFilterBuilder $filterBuilder */
 			$filterBuilder = pluginApp(ItemFilterBuilder::class);
-			$filter        = $filterBuilder
+
+            if(pluginApp(TemplateConfigService::class)->get('item.show_variation_over_dropdown') != 'true')
+            {
+                $filterBuilder->variationStockIsSalable();
+            }
+
+			$filter = $filterBuilder
 				->hasId([$itemId])
-				->variationIsChild()
 				->variationIsActive()
-                ->variationStockIsSalable()
-				->build();
+                ->build();
 
 			/** @var ItemParamsBuilder $paramsBuilder */
 			$paramsBuilder = pluginApp(ItemParamsBuilder::class);
 			$params        = $paramsBuilder
 				->withParam(ItemColumnsParams::LANGUAGE, $this->sessionStorage->getLang())
 				->withParam(ItemColumnsParams::PLENTY_ID, $this->app->getPlentyId())
+                ->withParam(ItemColumnsParams::CUSTOMER_CLASS, pluginApp(CustomerService::class)->getContact()->classId)
 				->build();
 
 			$recordList = $this->itemRepository->search($columns, $filter, $params);
 
 			foreach($recordList as $variation)
 			{
-				$data = [
-					"variationId" => $variation->variationBase->id,
-					"attributes"  => $variation->variationAttributeValueList,
-                    "url"         => $variation->itemDescription->urlContent . "_" . $itemId
-				];
+                if($variation->itemDescription->urlContent !== "" )
+                {
+                    $url = $variation->itemDescription->urlContent  ."_". $itemId;
+                }
+                else
+                {
+                    $url = $itemId;
+                }
+
+                $data = [
+                    "variationId" => $variation->variationBase->id,
+                    "attributes"  => $variation->variationAttributeValueList,
+                    "url"         => $url
+                ];
 				array_push($variations, $data);
 			}
 		}
@@ -447,12 +501,16 @@ class ItemService
             ->withVariationBase([
                 VariationBaseFields::LIMIT_ORDER_BY_STOCK_SELECT
             ])
+            ->withVariationRetailPrice([
+                VariationRetailPriceFields::BASE_PRICE
+            ])
             ->build();
 
         /** @var ItemFilterBuilder $filterBuilder */
         $filterBuilder = pluginApp(ItemFilterBuilder::class);
         $filter        = $filterBuilder
             ->variationHasId([$variationId])
+            ->variationHasRetailPrice()
             ->build();
 
         /** @var ItemParamsBuilder $paramsBuilder */
@@ -461,6 +519,7 @@ class ItemService
             ->withParam(ItemColumnsParams::TYPE, 'virtual')
             ->withParam(ItemColumnsParams::LANGUAGE, $this->sessionStorage->getLang())
             ->withParam(ItemColumnsParams::PLENTY_ID, $this->app->getPlentyId())
+            ->withParam(ItemColumnsParams::CUSTOMER_CLASS, pluginApp(CustomerService::class)->getContactClassId())
             ->build();
 
         $record = $this->itemRepository->search($columns, $filter, $params)->current();
@@ -490,6 +549,9 @@ class ItemService
 					                    VariationBaseFields::PACKING_UNITS,
 					                    VariationBaseFields::CUSTOM_NUMBER
 				                    ])
+                ->withVariationRetailPrice([
+                    VariationRetailPriceFields::BASE_PRICE
+                ])
 				->withVariationAttributeValueList([
 					                                  VariationAttributeValueFields::ATTRIBUTE_ID,
 					                                  VariationAttributeValueFields::ATTRIBUTE_VALUE_ID
@@ -499,16 +561,16 @@ class ItemService
 			$filterBuilder = pluginApp(ItemFilterBuilder::class);
 			$filter        = $filterBuilder
 				->hasId([$itemId])
-				->variationIsChild()
+                ->variationHasRetailPrice()
                 ->variationIsActive()
-                ->variationStockIsSalable()
                 ->build();
 
 			/** @var ItemParamsBuilder $paramsBuilder */
 			$paramsBuilder = pluginApp(ItemParamsBuilder::class);
 			$params        = $paramsBuilder
-				->withParam(ItemColumnsParams::LANGUAGE, Language::DE)
+				->withParam(ItemColumnsParams::LANGUAGE, $this->sessionStorage->getLang())
 				->withParam(ItemColumnsParams::PLENTY_ID, $this->app->getPlentyId())
+                ->withParam(ItemColumnsParams::CUSTOMER_CLASS, pluginApp(CustomerService::class)->getContactClassId())
 				->build();
 
 			$recordList = $this->itemRepository->search($columns, $filter, $params);
@@ -559,7 +621,7 @@ class ItemService
 			->withParam(ItemColumnsParams::LANGUAGE, $this->sessionStorage->getLang())
 			->withParam(ItemColumnsParams::PLENTY_ID, $this->app->getPlentyId())
 			->build();
-
+   
 		$record = $this->itemRepository->search($columns, $filter, $params)->current();
 		return $record;
 	}
@@ -611,7 +673,7 @@ class ItemService
 	 * @param string $crossSellingType
 	 * @return array
 	 */
-	public function getItemCrossSellingList($itemId = 0, string $crossSellingType = CrossSellingType::SIMILAR):array
+	public function getItemCrossSellingList($itemId = 0, string $crossSellingType = 'similar'):array
 	{
 		$crossSellingItems = [];
 
@@ -757,6 +819,24 @@ class ItemService
 
 		return $elasticSearchRepo->execute();
 	}
+
+    /**
+     *
+     */
+	public function getAdditionalItemSorting(){
+	    /** @var Dispatcher $dispatcher */
+	    $dispatcher = pluginApp(Dispatcher::class);
+	    $dispatcher->fire('IO.initAdditionalSorting', [$this]);
+	    return $this->additionalItemSortingMap;
+    }
+
+    /**
+     * @param string $key
+     * @param string $translationKey
+     */
+    public function addAdditionalItemSorting($key, $translationKey){
+        $this->additionalItemSortingMap[$key] = $translationKey;
+    }
     
     /**
      * @param string $searchString

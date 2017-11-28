@@ -4,16 +4,18 @@ namespace IO\Services\ItemLoader\Loaders;
 
 use IO\Services\SessionStorageService;
 use IO\Services\ItemLoader\Contracts\ItemLoaderContract;
+use IO\Services\ItemLoader\Contracts\ItemLoaderPaginationContract;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Processor\DocumentProcessor;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Query\Type\TypeInterface;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Search\Document\DocumentSearch;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Search\SearchInterface;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Source\Mutator\BuiltIn\LanguageMutator;
+use Plenty\Modules\Item\Search\Mutators\ImageMutator;
 use Plenty\Modules\Item\Search\Filter\ClientFilter;
 use Plenty\Modules\Item\Search\Filter\VariationBaseFilter;
 use Plenty\Plugin\Application;
 
-class BasketItems implements ItemLoaderContract
+class BasketItems implements ItemLoaderContract, ItemLoaderPaginationContract
 {
     /**
      * @return SearchInterface
@@ -21,10 +23,13 @@ class BasketItems implements ItemLoaderContract
     public function getSearch()
     {
         $languageMutator = pluginApp(LanguageMutator::class, ["languages" => [pluginApp(SessionStorageService::class)->getLang()]]);
-
+        $imageMutator = pluginApp(ImageMutator::class);
+        $imageMutator->addClient(pluginApp(Application::class)->getPlentyId());
+    
         $documentProcessor = pluginApp(DocumentProcessor::class);
         $documentProcessor->addMutator($languageMutator);
-
+        $documentProcessor->addMutator($imageMutator);
+    
         return pluginApp(DocumentSearch::class, [$documentProcessor]);
     }
     
@@ -50,7 +55,7 @@ class BasketItems implements ItemLoaderContract
         /** @var VariationBaseFilter $variationFilter */
         $variationFilter = pluginApp(VariationBaseFilter::class);
         $variationFilter->isActive();
-        
+
         if(array_key_exists('variationIds', $options) && count($options['variationIds']))
         {
             $variationFilter->hasIds($options['variationIds']);
@@ -60,5 +65,23 @@ class BasketItems implements ItemLoaderContract
             $clientFilter,
             $variationFilter
         ];
+    }
+    
+    /**
+     * @param array $options
+     * @return int
+     */
+    public function getCurrentPage($options = [])
+    {
+        return (INT)$options['page'];
+    }
+    
+    /**
+     * @param array $options
+     * @return int
+     */
+    public function getItemsPerPage($options = [])
+    {
+        return (INT)$options['items'];
     }
 }

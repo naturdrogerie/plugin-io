@@ -2,6 +2,7 @@
 
 namespace IO\Models;
 
+use IO\Builder\Order\OrderType;
 use Plenty\Modules\Order\Models\Order;
 use Plenty\Modules\Order\Status\Models\OrderStatusName;
 use Plenty\Modules\Frontend\PaymentMethod\Contracts\FrontendPaymentMethodRepositoryContract;
@@ -9,9 +10,14 @@ use Plenty\Modules\Frontend\PaymentMethod\Contracts\FrontendPaymentMethodReposit
 use Plenty\Modules\Order\Shipping\Contracts\ParcelServicePresetRepositoryContract;
 use IO\Extensions\Filters\URLFilter;
 use IO\Services\ItemService;
+use IO\Services\OrderService;
 
 class LocalizedOrder extends ModelWrapper
 {
+    /**
+     * The OrderItem types that will be wrapped. All other OrderItems will be stripped from the order.
+     */
+    const WRAPPED_ORDERITEM_TYPES = [1, 3, 6, 9];
     /**
      * @var Order
      */
@@ -29,6 +35,7 @@ class LocalizedOrder extends ModelWrapper
 
     public $itemURLs = [];
     public $itemImages = [];
+    public $isReturnable = false;
 
     /**
      * @param Order $order
@@ -47,57 +54,75 @@ class LocalizedOrder extends ModelWrapper
         $instance = pluginApp( self::class );
         $instance->order = $order;
 
-        //$statusRepository = pluginApp(StatusRepositoryContract::class);
-        $instance->status = []; //$statusRepository->findStatusNameById( $order->statusId, $lang );
-
+        $instance->status = [];
+    
+        /**
+         * @var ParcelServicePresetRepositoryContract $parcelServicePresetRepository
+         */
         $parcelServicePresetRepository = pluginApp(ParcelServicePresetRepositoryContract::class);
-        if($parcelServicePresetRepository instanceof ParcelServicePresetRepositoryContract)
+        
+        try
         {
-            
-        }
-        $shippingProfile = $parcelServicePresetRepository->getPresetById( $order->shippingProfileId );
-        foreach( $shippingProfile->parcelServicePresetNames as $name )
-        {
-            if( $name->lang === $lang )
+            $shippingProfile = $parcelServicePresetRepository->getPresetById( $order->shippingProfileId );
+            foreach( $shippingProfile->parcelServicePresetNames as $name )
             {
-                $instance->shippingProfileName = $name->name;
-                break;
+                if( $name->lang === $lang )
+                {
+                    $instance->shippingProfileName = $name->name;
+                    break;
+                }
+            }
+    
+            foreach( $shippingProfile->parcelServiceNames as $name )
+            {
+                if( $name->lang === $lang )
+                {
+                    $instance->shippingProvider = $name->name;
+                    break;
+                }
             }
         }
-
-        foreach( $shippingProfile->parcelServiceNames as $name )
-        {
-            if( $name->lang === $lang )
-            {
-                $instance->shippingProvider = $name->name;
-                break;
-            }
-        }
+        catch(\Exception $e)
+        {}
+        
 
         $frontentPaymentRepository = pluginApp( FrontendPaymentMethodRepositoryContract::class );
-        $instance->paymentMethodName = $frontentPaymentRepository->getPaymentMethodNameById( $order->methodOfPaymentId, $lang );
-        $instance->paymentMethodIcon = $frontentPaymentRepository->getPaymentMethodIconById( $order->methodOfPaymentId, $lang );
+        
+        try
+        {
+            $instance->paymentMethodName = $frontentPaymentRepository->getPaymentMethodNameById( $order->methodOfPaymentId, $lang );
+            $instance->paymentMethodIcon = $frontentPaymentRepository->getPaymentMethodIconById( $order->methodOfPaymentId, $lang );
+        }
+        catch(\Exception $e)
+        {}
 
 
         $urlFilter = pluginApp(URLFilter::class);
         $itemService = pluginApp(ItemService::class);
 
-        foreach( $order->orderItems as $orderItem )
+        foreach( $order->orderItems as $key => $orderItem )
         {
-            if( $orderItem->itemVariationId !== 0 )
+            if(in_array($orderItem->typeId, self::WRAPPED_ORDERITEM_TYPES))
             {
-                $itemUrl = '';
-                if((INT)$orderItem->itemVariationId > 0)
-                {
-                    $itemUrl = $urlFilter->buildVariationURL($orderItem->itemVariationId, true);
-                }
                 
-                $instance->itemURLs[$orderItem->itemVariationId] = $itemUrl;
-
-                $itemImage = $itemService->getVariationImage($orderItem->itemVariationId);
-                $instance->itemImages[$orderItem->itemVariationId] = $itemImage;
+                if( $orderItem->itemVariationId !== 0 )
+                {
+                    $itemUrl = '';
+                    if((INT)$orderItem->itemVariationId > 0)
+                    {
+                        $itemUrl = $urlFilter->buildVariationURL($orderItem->itemVariationId, true);
+                    }
+    
+                    $instance->itemURLs[$orderItem->itemVariationId] = $itemUrl;
+    
+                    $itemImage = $itemService->getVariationImage($orderItem->itemVariationId);
+                    $instance->itemImages[$orderItem->itemVariationId] = $itemImage;
+                }
             }
-
+            else
+            {
+                unset($order->orderItems[$key]);
+            }
         }
 
         return $instance;
@@ -116,7 +141,8 @@ class LocalizedOrder extends ModelWrapper
             "paymentMethodName"     => $this->paymentMethodName,
             "paymentMethodIcon"     => $this->paymentMethodIcon,
             "itemURLs"              => $this->itemURLs,
-            "itemImages"            => $this->itemImages
+            "itemImages"            => $this->itemImages,
+            "isReturnable"          => $this->isReturnable
         ];
 
         $data["order"]["billingAddress"] = $this->order->billingAddress->toArray();

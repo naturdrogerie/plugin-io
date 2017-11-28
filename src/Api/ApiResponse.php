@@ -4,6 +4,7 @@ namespace IO\Api;
 
 use IO\Services\BasketService;
 use IO\Services\CheckoutService;
+use IO\Services\LocalizationService;
 use Plenty\Plugin\Http\Response;
 use Plenty\Modules\Account\Events\FrontendUpdateCustomerSettings;
 use Plenty\Modules\Authentication\Events\AfterAccountAuthentication;
@@ -74,7 +75,7 @@ class ApiResponse
 		// Register basket events
         $this->dispatcher->listen( AfterBasketChanged::class, function($event) {
             $this->eventData["AfterBasketChanged"] = [
-                "basket" => pluginApp(BasketService::class)->getBasket()
+                "basket" => pluginApp(BasketService::class)->getBasketForTemplate()
             ];
             $this->eventData['CheckoutChanged'] = [
                 'checkout' => pluginApp(CheckoutService::class)->getCheckout()
@@ -170,6 +171,10 @@ class ApiResponse
         $this->dispatcher->listen(FrontendShippingProfileChanged::class, function ($event)
         {
             $this->eventData["FrontendShippingProfileChanged"] = [];
+            $this->eventData["LocalizationChanged"] = [
+                "localization" => pluginApp(LocalizationService::class)->getLocalizationData()
+            ];
+
         }, 0);
         
 		// Register auth events

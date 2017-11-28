@@ -6,6 +6,7 @@ use Plenty\Plugin\ConfigRepository;
 use Plenty\Plugin\RouteServiceProvider;
 use Plenty\Plugin\Routing\Router;
 use Plenty\Plugin\Routing\ApiRouter;
+use IO\Services\TemplateConfigService;
 
 /**
  * Class IORouteServiceProvider
@@ -24,6 +25,8 @@ class IORouteServiceProvider extends RouteServiceProvider
      */
 	public function map(Router $router, ApiRouter $api, ConfigRepository $config)
 	{
+        $templateConfigService = pluginApp(TemplateConfigService::class);
+
 		$api->version(['v1'], ['namespace' => 'IO\Api\Resources'], function ($api)
 		{
 			$api->get('io/basket', 'BasketResource@index');
@@ -32,25 +35,35 @@ class IORouteServiceProvider extends RouteServiceProvider
             $api->post('io/order', 'OrderResource@store');
 			$api->get('io/order/paymentMethods', 'OrderPaymentResource@paymentMethodListForSwitch');
             $api->resource('io/order/payment', 'OrderPaymentResource');
+            $api->resource('io/order/contactWish', 'OrderContactWishResource');
+            $api->resource('io/order/return', 'OrderReturnResource');
+            $api->resource('io/order/template', 'OrderTemplateResource');
             $api->get('io/checkout', 'CheckoutResource@index');
             $api->post('io/checkout', 'CheckoutResource@store');
             $api->put('io/checkout', 'CheckoutResource@update');
+            $api->resource('io/category/description', 'CategoryDescriptionResource');
 			$api->resource('io/checkout/payment', 'CheckoutPaymentResource');
 			$api->resource('io/customer', 'CustomerResource');
 			$api->resource('io/customer/address', 'CustomerAddressResource');
 			$api->resource('io/customer/login', 'CustomerAuthenticationResource');
 			$api->resource('io/customer/logout', 'CustomerLogoutResource');
 			$api->resource('io/customer/password', 'CustomerPasswordResource');
+            $api->resource('io/customer/password_reset', 'CustomerPasswordResetResource');
+            $api->resource('io/customer/contact/mail', 'ContactMailResource');
+            $api->resource('io/customer/bank_data', 'ContactBankResource');
+            $api->resource('io/customer/order/return', 'CustomerOrderReturnResource');
             $api->resource('io/variations', 'VariationResource');
             $api->resource('io/item/availability', 'AvailabilityResource');
             $api->resource('io/item/condition', 'ItemConditionResource');
             $api->get('io/item/search', 'ItemSearchResource@index');
             $api->get('io/item/search/autocomplete', 'ItemSearchAutocompleteResource@index');
-			$api->resource('io/customer/bank_data', 'ContactBankResource');
 			$api->resource('io/coupon', 'CouponResource');
             $api->resource('io/guest', 'GuestResource');
             $api->resource('io/category', 'CategoryItemResource');
             $api->resource('io/template', 'TemplateResource');
+            $api->resource('io/localization/language', 'LanguageResource');
+            $api->resource('io/itemWishList', 'ItemWishListResource');
+            $api->resource('io/cache/reset_template_cache', 'ResetTemplateCacheResource');
 		});
 
 		$enabledRoutes = explode(", ",  $config->get("IO.routing.enabled_routes") );
@@ -80,13 +93,8 @@ class IORouteServiceProvider extends RouteServiceProvider
 		if ( in_array("confirmation", $enabledRoutes) || in_array("all", $enabledRoutes) )
         {
             //Confiramtion route
-            $router->get('confirmation', 'IO\Controllers\ConfirmationController@showConfirmation');
-        }
-
-		if ( in_array("guest", $enabledRoutes) || in_array("all", $enabledRoutes) )
-        {
-            //Guest route
-            $router->get('guest', 'IO\Controllers\GuestController@showGuest');
+            $router->get('confirmation/{orderId?}/{orderAccessKey?}', 'IO\Controllers\ConfirmationController@showConfirmation');
+            $router->get('-/akQQ{orderAccessKey}/idQQ{orderId}', 'IO\Controllers\ConfirmationEmailController@showConfirmation');
         }
 
 		if ( in_array("login", $enabledRoutes) || in_array("all", $enabledRoutes) )
@@ -99,6 +107,7 @@ class IORouteServiceProvider extends RouteServiceProvider
         {
             //Register page route
             $router->get('register', 'IO\Controllers\RegisterController@showRegister');
+            $router->get('registration', 'IO\Controllers\RegisterController@redirectRegister');
         }
 
 		if ( in_array("place-order", $enabledRoutes) || in_array("all", $enabledRoutes) )
@@ -140,6 +149,28 @@ class IORouteServiceProvider extends RouteServiceProvider
         if ( in_array("gtc", $enabledRoutes) || in_array("all", $enabledRoutes) ) {
             //terms and conditions page
             $router->get('gtc', 'IO\Controllers\StaticPagesController@showTermsAndConditions');
+        }
+
+
+        if( in_array("wish-list", $enabledRoutes) || in_array("all", $enabledRoutes))
+        {
+            $router->get('wish-list', 'IO\Controllers\ItemWishListController@showWishList');
+        }
+
+        if( in_array('order-return', $enabledRoutes) || in_array("all", $enabledRoutes))
+        {
+            $router->get('returns/{orderId}', 'IO\Controllers\OrderReturnController@showOrderReturn');
+        }
+
+        if( (in_array("contact", $enabledRoutes) || in_array("all", $enabledRoutes) ) )
+        {
+            //contact
+            $router->get('contact', 'IO\Controllers\ContactController@showContact');
+        }
+        
+        if( in_array("password-reset", $enabledRoutes) || in_array("all", $enabledRoutes) )
+        {
+            $router->get('password-reset/{contactId}/{hash}', 'IO\Controllers\CustomerPasswordResetController@showReset');
         }
         
 		/*
