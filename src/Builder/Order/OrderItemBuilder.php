@@ -43,19 +43,19 @@ class OrderItemBuilder
 	 */
 	public function fromBasket(Basket $basket, array $items):array
 	{
-		$currentLanguage = pluginApp(SessionStorageService::class)->getLang();
 		$orderItems      = [];
         $maxVatRate      = 0;
 
         foreach($items as $item)
-        {
+		{
             if($maxVatRate < $item['vat'])
             {
                 $maxVatRate = $item['vat'];
             }
-    
-            array_push($orderItems, $this->basketItemToOrderItem($item));
-        }
+
+			array_push($orderItems, $this->basketItemToOrderItem($item));
+		}
+
 
 		// add shipping costs
         $shippingCosts = [
@@ -99,8 +99,7 @@ class OrderItemBuilder
 
 	/**
 	 * Add a basket item to the order
-	 * @param BasketItem $basketItem
-	 * @param string $basketItemName
+	 * @param array $basketItem
 	 * @return array
 	 */
 	private function basketItemToOrderItem(array $basketItem):array
@@ -125,8 +124,10 @@ class OrderItemBuilder
 		if(isset($basketItem['attributeTotalMarkup']))
 		{
             $attributeTotalMarkup = $basketItem['attributeTotalMarkup'];
-			//if($attributeTotalMarkup != 0)
-				//$priceOriginal -= $attributeTotalMarkup;
+			if($attributeTotalMarkup != 0)
+			{
+				$priceOriginal -= $attributeTotalMarkup;
+			}
         }
         
         $rebate = 0;

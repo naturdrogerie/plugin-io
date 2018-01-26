@@ -1,5 +1,90 @@
 # Release Notes for IO
 
+## v2.1.3 (2018-01-23) <a href="https://github.com/plentymarkets/plugin-io/compare/2.1.2...2.1.3" target="_blank"><b>Overview of all changes</b></a>
+
+### Fixed
+
+- Due to an error the 404 page wasn't displayed correctly. This has been fixed.
+- Due to an error unneccessary item requests were executed. This has been fixed.
+
+## v2.1.2 (2018-01-22) <a href="https://github.com/plentymarkets/plugin-io/compare/2.1.1...2.1.2" target="_blank"><b>Overview of all changes</b></a>
+
+### Added
+
+- A security prompt has been added which prevents customers from returning items multiple times.
+
+### Fixed
+
+- Due to an error too many items have been displayed in the wish list. This has been fixed.
+
+## v2.1.1 (2018-01-09) <a href="https://github.com/plentymarkets/plugin-io/compare/2.1.0...2.1.1" target="_blank"><b>Overview of all changes</b></a>
+
+### Fixed
+
+- When ordering as a guest, the address will now be removed from the session after placing the order.
+- Due to an error, wrong item URLs have been generated when only one language has been activated for the online store. This has been fixed.
+
+## v2.1.0 (2018-01-04) <a href="https://github.com/plentymarkets/plugin-io/compare/2.0.3...2.1.0" target="_blank"><b>Overview of all changes</b></a>
+
+### Added
+
+- URLs for items and categories can now be generated in the respective language.
+
+### Fixed
+
+- Due to an error, readable URLs for new items could not be generated. This has been fixed.
+
+## v2.0.3 (2017-12-21) <a href="https://github.com/plentymarkets/plugin-io/compare/2.0.2...2.0.3" target="_blank"><b>Overview of all changes</b></a>
+
+### Added
+
+- Translatable error message for registration in case the email address already exists.
+
+### Fixed
+
+- Delivery address can now be set back to "Delivery address equals invoice address".
+- Fixed error for item visibility in spite of link to customer class.
+
+## v2.0.2 (2017-12-13) <a href="https://github.com/plentymarkets/plugin-io/compare/2.0.1...2.0.2" target="_blank"><b>Overview of all changes</b></a>
+
+### Added
+
+- The additional flag `isSelectable` is sent when loading payment methods.
+
+### Fixed
+
+- Order referrers will now be taken into consideration when loading items or calculating prices.
+- Various errors concerning the handling of coupon codes have been fixed.
+
+## v2.0.1 (2017-12-06) <a href="https://github.com/plentymarkets/plugin-io/compare/2.0.0...2.0.1" target="_blank"><b>Overview of all changes</b></a>
+
+### Fixed
+
+- Due to an error the default homepage wasn't displayed correctly. This has been fixed.
+
+## v2.0.0 (2017-11-30) <a href="https://github.com/plentymarkets/plugin-io/compare/1.7.2...2.0.0" target="_blank"><b>Overview of all changes</b></a>
+
+### Added
+
+- The Twig functions `get_additional_styles()` und `get_additional_scripts()` allow external plugins get styles and scripts and output them at the respective location.
+- A new REST route `io/checkout/paymentId` for setting the payment method has been added.
+- A new REST route `io/checkout/shippingId` for seeting the shipping method has been added.
+- An **Account** will be created in plentymarkets when a B2B customer signs up in the online store.
+- A middleware has been added for reacting to changes of the currency in the online store.
+- Prices will now be converted when the currency is changed.
+- The logic for calculating order sums has been added (previously this logic was contained in a Twig macro in Ceres).
+- A customer that ordered as a guest may now change the payment method on the order confirmation page if enabled.
+- A customer that ordered as a guest can now pay an order subsequently, e.g. when the payment method changes.
+- An error message has been added that will be displayed when an error occurs during adding items to the shopping cart. 
+
+### Fixed
+
+- Due to an error the **My Account** area could not be loaded when loading the orders of a customer.
+- Due to an error the route `/wishlist` for the wish list hasn't been active even though it has been activated in the configuration. This has been fixed.
+- Due to an error prices with different VAT rated haven't been displayed correctly. This has been fixed.
+- Multiple events are now triggered after loggint out of the online store for, e.g. updating the shopping cart.
+- An order for which returns are not allowed cannot be accessed directly using the `/returns` route anymore.
+
 ## v1.7.2 (2017-11-22) <a href="https://github.com/plentymarkets/plugin-io/compare/1.7.1...1.7.2" target="_blank"><b>Overview of all changes</b></a>
 
 ### Fixed

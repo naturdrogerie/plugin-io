@@ -4,14 +4,8 @@ namespace IO\Services;
 
 use Plenty\Modules\Category\Models\Category;
 use Plenty\Modules\Category\Contracts\CategoryRepositoryContract;
+use Plenty\Modules\Category\Models\CategoryDetails;
 use Plenty\Repositories\Models\PaginatedResult;
-
-use IO\Services\SessionStorageService;
-use IO\Services\WebstoreConfigurationService;
-use IO\Services\ItemService;
-use IO\Helper\CategoryMap;
-use IO\Helper\CategoryKey;
-use IO\Builder\Category\CategoryParamsBuilder;
 
 /**
  * Class CategoryService
@@ -43,7 +37,7 @@ class CategoryService
 	 * @var array
 	 */
 	private $currentCategoryTree = [];
-	
+
 	private $currentItem = [];
 
     /**
@@ -105,13 +99,22 @@ class CategoryService
 	 * @param string $lang The language to get the category
 	 * @return Category
 	 */
-	public function get($catID = 0, string $lang = "de")
+	public function get($catID = 0, $lang = null)
 	{
+	    if ( $lang === null )
+        {
+            $lang = $this->sessionStorageService->getLang();
+        }
 		return $this->categoryRepository->get($catID, $lang);
 	}
 
-	public function getChildren($categoryId, $lang = "de")
+	public function getChildren($categoryId, $lang = null)
     {
+        if ( $lang === null )
+        {
+            $lang = $this->sessionStorageService->getLang();
+        }
+
         if($categoryId > 0)
         {
             return $this->categoryRepository->getChildren($categoryId, $lang);
@@ -124,16 +127,46 @@ class CategoryService
 	 * Return the URL for a given category ID.
 	 * @param Category $category the category to get the URL for
 	 * @param string $lang the language to get the URL for
-	 * @return string
+	 * @return string|null
 	 */
-	public function getURL($category, string $lang = "de"):string
+	public function getURL($category, $lang = null)
 	{
+        if ( $lang === null )
+        {
+            $lang = $this->sessionStorageService->getLang();
+        }
+
 		if(!$category instanceof Category || $category->details[0] === null)
 		{
-			return "ERR";
+			return null;
 		}
 		return "/" . $this->categoryRepository->getUrl($category->id, $lang);
 	}
+
+    /**
+     * @param $category
+     * @param $lang
+     * @return CategoryDetails|null
+     */
+	public function getDetails($category, $lang)
+    {
+        if ( $category === null )
+        {
+            return null;
+        }
+
+        /** @var CategoryDetails $catDetail */
+        foreach( $category->details as $catDetail )
+        {
+            if ( $catDetail->lang == $lang )
+            {
+                return $catDetail;
+            }
+        }
+
+        return null;
+    }
+
 
 	/**
 	 * Check whether a category is referenced by the current route
@@ -213,8 +246,13 @@ class CategoryService
      * @param int|null $maxLevel The deepest category level to load
      * @return array
      */
-    public function getNavigationTree(string $type = "all", string $lang = "de", int $maxLevel = 2):array
+    public function getNavigationTree(string $type = "all", string $lang = null, int $maxLevel = 2):array
     {
+        if ( $lang === null )
+        {
+            $lang = $this->sessionStorageService->getLang();
+        }
+
         return $this->categoryRepository->getLinklistTree($type, $lang, $this->webstoreConfig->getWebstoreConfig()->webstoreId, $maxLevel);
     }
 
@@ -224,8 +262,12 @@ class CategoryService
      * @param string $lang The language to get sitemap list for
      * @return array
      */
-    public function getNavigationList(string $type = "all", string $lang = "de"):array
+    public function getNavigationList(string $type = "all", string $lang = null):array
     {
+        if ( $lang === null )
+        {
+            $lang = $this->sessionStorageService->getLang();
+        }
 		return $this->categoryRepository->getLinklistList($type, $lang, $this->webstoreConfig->getWebstoreConfig()->webstoreId);
     }
 
@@ -262,14 +304,20 @@ class CategoryService
     
         if(count($this->currentItem))
         {
-            array_push( $hierarchy, $this->currentItem );
+            $lang = pluginApp( SessionStorageService::class )->getLang();
+            array_push( $hierarchy, $this->currentItem['texts'][$lang] );
         }
 
         return $hierarchy;
     }
-    
-    public function setCurrentItem($itemNames)
+
+    public function setCurrentItem($item)
     {
-        $this->currentItem = $itemNames;
+        $this->currentItem = $item;
+    }
+
+    public function getCurrentItem()
+    {
+        return $this->currentItem;
     }
 }
