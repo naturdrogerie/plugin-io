@@ -4,6 +4,7 @@ namespace IO\Services;
 
 use IO\Builder\Order\AddressType;
 use IO\Helper\LanguageMap;
+use IO\Helper\MemoryCache;
 use Plenty\Modules\Basket\Events\Basket\AfterBasketChanged;
 use Plenty\Modules\Frontend\Events\ValidateCheckoutEvent;
 use Plenty\Modules\Frontend\PaymentMethod\Contracts\FrontendPaymentMethodRepositoryContract;
@@ -27,6 +28,8 @@ use Plenty\Plugin\Translation\Translator;
  */
 class CheckoutService
 {
+    use MemoryCache;
+
     /**
      * @var FrontendPaymentMethodRepositoryContract
      */
@@ -97,25 +100,30 @@ class CheckoutService
      */
     public function getCurrency(): string
     {
-        $currency = (string)$this->sessionStorage->getPlugin()->getValue(SessionStorageKeys::CURRENCY);
-        if ($currency === null || $currency === "") {
-            /** @var SessionStorageService $sessionService */
-            $sessionService = pluginApp(SessionStorageService::class);
+        return $this->fromMemoryCache(
+            "currency",
+            function() {
+                $currency = (string)$this->sessionStorage->getPlugin()->getValue(SessionStorageKeys::CURRENCY);
+                if ($currency === null || $currency === "") {
+                    /** @var SessionStorageService $sessionService */
+                    $sessionService = pluginApp(SessionStorageService::class);
 
-            /** @var WebstoreConfigurationService $webstoreConfig */
-            $webstoreConfig = pluginApp(WebstoreConfigurationService::class);
+                    /** @var WebstoreConfigurationService $webstoreConfig */
+                    $webstoreConfig = pluginApp(WebstoreConfigurationService::class);
 
-            $currency = 'EUR';
+                    $currency = 'EUR';
 
-            if (
-                is_array($webstoreConfig->getWebstoreConfig()->defaultCurrencyList) &&
-                array_key_exists($sessionService->getLang(), $webstoreConfig->getWebstoreConfig()->defaultCurrencyList)
-            ) {
-                $currency = $webstoreConfig->getWebstoreConfig()->defaultCurrencyList[$sessionService->getLang()];
+                    if (
+                        is_array($webstoreConfig->getWebstoreConfig()->defaultCurrencyList) &&
+                        array_key_exists($sessionService->getLang(), $webstoreConfig->getWebstoreConfig()->defaultCurrencyList)
+                    ) {
+                        $currency = $webstoreConfig->getWebstoreConfig()->defaultCurrencyList[$sessionService->getLang()];
+                    }
+                    $this->setCurrency($currency);
+                }
+                return $currency;
             }
-            $this->setCurrency($currency);
-        }
-        return $currency;
+        );
     }
 
     /**
@@ -153,18 +161,23 @@ class CheckoutService
 
     public function getCurrencyData()
     {
-        $currency = $this->getCurrency();
-        $locale = LanguageMap::getLocale();
+        return $this->fromMemoryCache(
+            "currencyData",
+            function() {
+                $currency = $this->getCurrency();
+                $locale = LanguageMap::getLocale();
 
-        $formatter = numfmt_create(
-            $locale . "@currency=" . $currency,
-            \NumberFormatter::CURRENCY
+                $formatter = numfmt_create(
+                    $locale . "@currency=" . $currency,
+                    \NumberFormatter::CURRENCY
+                );
+
+                return [
+                    "name" => $currency,
+                    "symbol" => $formatter->getSymbol( \NumberFormatter::CURRENCY_SYMBOL )
+                ];
+            }
         );
-
-        return [
-            "name" => $currency,
-            "symbol" => $formatter->getSymbol( \NumberFormatter::CURRENCY_SYMBOL )
-        ];
     }
 
     public function getCurrencyPattern()
@@ -251,7 +264,7 @@ class CheckoutService
         if ($validateCheckoutEvent instanceof ValidateCheckoutEvent && !empty($validateCheckoutEvent->getErrorKeysList())) {
             $dispatcher = pluginApp(Dispatcher::class);
             if ($dispatcher instanceof Dispatcher) {
-                $dispatcher->fire(AfterBasketChanged::class);
+                $dispatcher->fire(pluginApp(AfterBasketChanged::class), []);
             }
 
             $translator = pluginApp(Translator::class);
@@ -357,7 +370,13 @@ class CheckoutService
      */
     public function getShippingCountryId()
     {
-        return $this->checkout->getShippingCountryId();
+        $currentShippingCountryId = (int)$this->checkout->getShippingCountryId();
+        if($currentShippingCountryId <= 0)
+        {
+            return pluginApp(WebstoreConfigurationService::class)->getDefaultShippingCountryId();
+        }
+
+        return $currentShippingCountryId;
     }
 
     /**
@@ -453,5 +472,14 @@ class CheckoutService
             $basketService = pluginApp(BasketService::class);
             $basketService->setBillingAddressId($billingAddressId);
         }
+    }
+    
+    public function setDefaultShippingCountryId()
+    {
+        /** @var WebstoreConfigurationService $webstoreConfig */
+        $webstoreConfigService = pluginApp(WebstoreConfigurationService::class);
+        $defaultShippingCountryId = $webstoreConfigService->getDefaultShippingCountryId();
+        
+        $this->setShippingCountryId($defaultShippingCountryId);
     }
 }

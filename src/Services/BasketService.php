@@ -2,8 +2,8 @@
 
 namespace IO\Services;
 
-use IO\Services\ItemLoader\Extensions\TwigLoaderPresets;
-use IO\Services\ItemLoader\Services\ItemLoaderService;
+use IO\Services\ItemSearch\SearchPresets\BasketItems;
+use IO\Services\ItemSearch\Services\ItemSearchService;
 use Plenty\Modules\Accounting\Vat\Models\VatRate;
 use Plenty\Modules\Basket\Contracts\BasketRepositoryContract;
 use Plenty\Modules\Basket\Contracts\BasketItemRepositoryContract;
@@ -66,7 +66,15 @@ class BasketService
         $basket = $this->getBasket()->toArray();
 
         $basket["itemQuantity"] = $this->getBasketQuantity();
-        $basket["totalVats"] = $this->getTotalVats();
+
+        if ( $basket["itemQuantity"] > 0 )
+        {
+            $basket["totalVats"] = $this->getTotalVats();
+        }
+        else
+        {
+            $basket["totalVats"] = [];
+        }
 
 
         if ($this->sessionStorage->getCustomer()->showNetPrice) {
@@ -101,9 +109,10 @@ class BasketService
     {
         $itemQuantity = 0;
 
-        foreach ($this->getBasketItems() as $item) {
-            if ($item["variationId"] > 0) {
-                $itemQuantity += $item["quantity"];
+        foreach ($this->getBasketItemsRaw() as $item) {
+            if ( $item->variationId > 0 )
+            {
+                $itemQuantity += $item->quantity;
             }
         }
 
@@ -144,27 +153,10 @@ class BasketService
 
         $result = array();
 
-        $numberFormatFilter = pluginApp(NumberFormatFilter::class);
-
         $basketItems    = $this->getBasketItemsRaw();
         $basketItemData = $this->getBasketItemData($basketItems, $template);
-        $showNetPrice   = $this->sessionStorage->getCustomer()->showNetPrice;
-        $currency       = $this->getBasket()->currency;
 
         foreach ($basketItems as $basketItem) {
-            if ($showNetPrice) {
-                $basePrice = $basketItemData[$basketItem->variationId]['data']['calculatedPrices']['default']->basePrice;
-                $basePrice = $basePrice * 100 / (100.0 + $basketItem->vat);
-
-                $basketItemData[$basketItem->variationId]['data']['calculatedPrices']['default']->basePrice     = $basePrice;
-                $basketItemData[$basketItem->variationId]['data']['calculatedPrices']['formatted']['basePrice'] = $numberFormatFilter->formatMonetary($basePrice,
-                    $currency);
-
-                $priceNet = $basketItem->price * 100 / (100.0 + $basketItem->vat);
-
-                $basketItemData[$basketItem->variationId]['data']['calculatedPrices']['default']->unitPrice = $priceNet;
-                $basketItemData[$basketItem->variationId]['data']['calculatedPrices']['default']->price     = $priceNet;
-            }
             array_push(
                 $result,
                 $this->addVariationData($basketItem, $basketItemData[$basketItem->variationId])
@@ -220,7 +212,7 @@ class BasketService
         try {
             if ($basketItem instanceof BasketItem) {
                 $data['id']       = $basketItem->id;
-                $data['quantity'] = (int)$data['quantity'] + $basketItem->quantity;
+                $data['quantity'] = (float)$data['quantity'] + $basketItem->quantity;
                 $this->basketItemRepository->updateBasketItem($basketItem->id, $data);
             } else {
                 $this->basketItemRepository->addBasketItem($data);
@@ -329,36 +321,20 @@ class BasketService
             $orderProperties[$basketItem->variationId]           = $basketItem->basketItemOrderParams;
         }
 
-        /** @var TwigLoaderPresets $loaderPresets */
-        $loaderPresets = pluginApp(TwigLoaderPresets::class);
-        $presets = $loaderPresets->getGlobals();
-        $items = pluginApp(ItemLoaderService::class)
-            ->loadForTemplate(
-                $template,
-                $presets['itemLoaderPresets']['basketItems'],
-                [
-                    'variationIds' => $basketItemVariationIds,
-                    'basketVariationQuantities' => $basketVariationQuantities,
-                    'items' => count($basketItemVariationIds), 'page' => 1
-                ]);
+        /** @var ItemSearchService $itemSearchService */
+        $itemSearchService = pluginApp( ItemSearchService::class );
+        $items = $itemSearchService->getResults(
+            BasketItems::getSearchFactory([
+                'variationIds'  => $basketItemVariationIds,
+                'quantities'    => $basketVariationQuantities
+            ])
+        );
 
         $result = array();
         foreach ($items['documents'] as $item) {
             $variationId                                     = $item['data']['variation']['id'];
             $result[$variationId]                            = $item;
             $result[$variationId]['data']['orderProperties'] = $orderProperties[$variationId];
-        }
-
-        foreach ($basketItems as $basketItem) {
-            $priceNet = $basketItem->price * 100 / (100.0 + $basketItem->vat);
-            $price = $basketItem->price;
-            $result[$basketItem->variationId]['data']['calculatedPrices']['default']->unitPrice    = $price;
-            $result[$basketItem->variationId]['data']['calculatedPrices']['default']->price        = $price;
-            $result[$basketItem->variationId]['data']['calculatedPrices']['default']->unitPriceNet = $priceNet;
-            $result[$basketItem->variationId]['data']['calculatedPrices']['default']->priceNet     = $priceNet;
-
-            $result[$basketItem->variationId]['data']['calculatedPrices']['formatted']['defaultPrice']     = $numberFormatFilter->formatMonetary($price, $currency);
-            $result[$basketItem->variationId]['data']['calculatedPrices']['formatted']['defaultUnitPrice'] = $numberFormatFilter->formatMonetary($price, $currency);
         }
 
         return $result;

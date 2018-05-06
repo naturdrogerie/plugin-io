@@ -93,6 +93,7 @@ class OrderService
 		                            ->withAddressId($checkoutService->getDeliveryAddressId(), AddressType::DELIVERY)
 		                            ->withOrderProperty(OrderPropertyType::PAYMENT_METHOD, OrderOptionSubType::MAIN_VALUE, $checkoutService->getMethodOfPaymentId())
                                     ->withOrderProperty(OrderPropertyType::SHIPPING_PROFILE, OrderOptionSubType::MAIN_VALUE, $checkoutService->getShippingProfileId())
+                                    ->withOrderProperty(OrderPropertyType::DOCUMENT_LANGUAGE, OrderOptionSubType::MAIN_VALUE, $this->sessionStorage->getLang())
 		                            ->done();
         
 		$order = $this->orderRepository->createOrder($order, $couponCode);
@@ -102,13 +103,8 @@ class OrderService
         {
             $this->sessionStorage->setSessionValue(SessionStorageKeys::LATEST_ORDER_ID, $order->id);
         }
-
-        // reset basket after order was created
-        $this->basketService->resetBasket();
-        $customerService->resetGuestAddresses();
         
-        
-        return LocalizedOrder::wrap( $order, "de" );
+        return LocalizedOrder::wrap( $order, $this->sessionStorage->getLang() );
 	}
 	
 	private function saveOrderContactWish($orderId, $text = '')
@@ -156,7 +152,7 @@ class OrderService
         
         if($wrap)
         {
-            return LocalizedOrder::wrap($order, 'de');
+            return LocalizedOrder::wrap($order, $this->sessionStorage->getLang());
         }
         
         return $order;
@@ -201,7 +197,7 @@ class OrderService
             }
         }
     
-        return LocalizedOrder::wrap($order, 'de');
+        return LocalizedOrder::wrap($order, $this->sessionStorage->getLang());
     }
     
     /**
@@ -230,7 +226,7 @@ class OrderService
 
         if($wrapped)
         {
-            $orders = LocalizedOrder::wrapPaginated( $orders, "de" );
+            $orders = LocalizedOrder::wrapPaginated( $orders, $this->sessionStorage->getLang() );
     
             $o = $orders->getResult();
             foreach($orders->getResult() as $key => $order)
@@ -265,7 +261,7 @@ class OrderService
         
         if(!is_null($order))
         {
-            return LocalizedOrder::wrap( $order, "de" );
+            return LocalizedOrder::wrap( $order, $this->sessionStorage->getLang() );
         }
         
         return null;
@@ -414,7 +410,8 @@ class OrderService
     
             unset($order['id']);
             unset($order['dates']);
-    
+            unset($order['lockStatus']);
+
             $createdReturn = $this->orderRepository->createOrder($order);
 
             if(!is_null($returnNote) && strlen($returnNote))
@@ -437,7 +434,7 @@ class OrderService
             'referenceOrderId' => $orderId
         ];
         
-        $allReturns = $this->getOrdersForContact(pluginApp(CustomerService::class)->getContactId(), 1, 50, $returnFilters, false)->getResult();
+        $allReturns = $this->getOrdersForContact(pluginApp(CustomerService::class)->getContactId(), 1, 100, $returnFilters, false)->getResult();
         
         $returnItems = [];
         $newOrderItems = [];
@@ -448,7 +445,7 @@ class OrderService
             {
                 foreach($return['orderReferences'] as $reference)
                 {
-                    if($reference['referenceType'] == 'parent' && $reference['referenceOrderId'] == $orderId)
+                    if($reference['referenceType'] == 'parent' && (int)$reference['referenceOrderId'] == $orderId)
                     {
                         foreach($return['orderItems'] as $returnItem)
                         {
@@ -489,6 +486,7 @@ class OrderService
                     }
                 }
                 
+                //$order->returnItems = $newOrderItems;
                 $order->orderItems = $newOrderItems;
             }
             else
@@ -500,12 +498,93 @@ class OrderService
                         $newOrderItems[] = $orderItem;
                     }
                 }
-    
+                
+                //$order->returnItems = $newOrderItems;
                 $order->orderItems = $newOrderItems;
             }
         }
         
         return $order;
+    }
+    
+    public function getReturnOrder($localizedOrder)
+    {
+        $order = $localizedOrder->order->toArray();
+        $orderId = $order['id'];
+        
+        $returnFilters = [
+            'orderType' => OrderType::RETURNS,
+            'referenceOrderId' => $orderId
+        ];
+    
+        $allReturns = $this->getOrdersForContact(pluginApp(CustomerService::class)->getContactId(), 1, 1000, $returnFilters, false)->getResult();
+    
+        $returnItems = [];
+        $newOrderItems = [];
+    
+        if(count($allReturns))
+        {
+            foreach ($allReturns as $returnKey => $return)
+            {
+                foreach ($return['orderReferences'] as $reference)
+                {
+                    if ($reference['referenceType'] == 'parent' && (int)$reference['referenceOrderId'] == $orderId)
+                    {
+                        foreach ($return['orderItems'] as $returnItem)
+                        {
+                            if (array_key_exists($returnItem['itemVariationId'], $returnItems))
+                            {
+                                $returnItems[$returnItem['itemVariationId']] += $returnItem['quantity'];
+                            }
+                            else
+                            {
+                                $returnItems[$returnItem['itemVariationId']] = $returnItem['quantity'];
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if(count($returnItems))
+        {
+            foreach($order['orderItems'] as $key => $orderItem)
+            {
+                if(array_key_exists($orderItem['itemVariationId'], $returnItems))
+                {
+                    $newQuantity = $orderItem['quantity'] - $returnItems[$orderItem['itemVariationId']];
+                }
+                else
+                {
+                    $newQuantity = $orderItem['quantity'];
+                }
+            
+                if($newQuantity > 0 && ($orderItem['typeId'] == 1 || $orderItem['typeId'] == 3 || $orderItem['typeId'] == 9))
+                {
+                    $orderItem['quantity'] = $newQuantity;
+                    $newOrderItems[] = $orderItem;
+                }
+                else
+                {
+                    $orderItem['quantity'] = 0;
+                }
+            }
+        }
+        else
+        {
+            foreach($order['orderItems'] as $key => $orderItem)
+            {
+                if($orderItem['typeId'] == 1 || $orderItem['typeId'] == 3 || $orderItem['typeId'] == 9)
+                {
+                    $newOrderItems[] = $orderItem;
+                }
+            }
+        }
+        
+        $order['orderItems'] = $newOrderItems;
+        $localizedOrder->orderData = $order;
+        
+        return $localizedOrder;
     }
     
     /**
@@ -588,11 +667,14 @@ class OrderService
             {
                 foreach($orderProperties as $key => $orderProperty)
                 {
-                    $newOrderProperties[$key] = $orderProperty;
+                    $newOrderProperties[$key] = [
+                        'typeId' => $orderProperty->typeId,
+                        'value' => (string)$orderProperty->value
+                    ];
                     if($orderProperty->typeId == OrderPropertyType::PAYMENT_METHOD)
                     {
                         $currentPaymentMethodId = (int)$orderProperty->value;
-                        $newOrderProperties[$key]['value'] = (int)$paymentMethodId;
+                        $newOrderProperties[$key]['value'] = (string)$paymentMethodId;
                     }
                 }
             }
@@ -608,7 +690,7 @@ class OrderService
                     
                     if(!is_null($order))
                     {
-                        return LocalizedOrder::wrap( $order, "de" );
+                        return LocalizedOrder::wrap( $order, $this->sessionStorage->getLang() );
                     }
                 }
             }

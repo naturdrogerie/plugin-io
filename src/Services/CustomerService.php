@@ -4,6 +4,7 @@ namespace IO\Services;
 
 use IO\Api\Resources\CustomerAddressResource;
 use IO\Builder\Order\OrderType;
+use IO\Helper\MemoryCache;
 use IO\Models\LocalizedOrder;
 use IO\Validators\Customer\ContactValidator;
 use IO\Validators\Customer\AddressValidator;
@@ -15,6 +16,7 @@ use Plenty\Modules\Account\Address\Contracts\AddressRepositoryContract;
 use Plenty\Modules\Account\Contact\Models\Contact;
 use IO\Builder\Order\AddressType;
 use Plenty\Modules\Account\Address\Models\Address;
+use Plenty\Modules\Account\Contact\Models\ContactOption;
 use Plenty\Modules\Account\Models\Account;
 use Plenty\Modules\Authorization\Services\AuthHelper;
 use IO\Helper\UserSession;
@@ -35,6 +37,8 @@ use Plenty\Modules\Account\Contact\Contracts\ContactClassRepositoryContract;
  */
 class CustomerService
 {
+    use MemoryCache;
+
     /**
      * @var ContactAccountRepositoryContract $accountRepository
      */
@@ -98,18 +102,55 @@ class CustomerService
 	
 	public function getContactClassData($contactClassId)
     {
-        /** @var ContactClassRepositoryContract $contactClassRepo */
-        $contactClassRepo = pluginApp(ContactClassRepositoryContract::class);
-    
-        /** @var AuthHelper $authHelper */
-        $authHelper = pluginApp(AuthHelper::class);
-    
-        $contactClass = $authHelper->processUnguarded( function() use ($contactClassRepo, $contactClassId)
-        {
-            return $contactClassRepo->findContactClassDataById($contactClassId);
-        });
-        
-        return $contactClass;
+        return $this->fromMemoryCache(
+            "contactClassData.$contactClassId",
+            function() use ($contactClassId)
+            {
+                /** @var ContactClassRepositoryContract $contactClassRepo */
+                $contactClassRepo = pluginApp(ContactClassRepositoryContract::class);
+
+                /** @var AuthHelper $authHelper */
+                $authHelper = pluginApp(AuthHelper::class);
+
+                $contactClass = $authHelper->processUnguarded( function() use ($contactClassRepo, $contactClassId)
+                {
+                    return $contactClassRepo->findContactClassDataById($contactClassId);
+                });
+
+                return $contactClass;
+            }
+        );
+    }
+
+    public function showNetPrices()
+    {
+        return $this->fromMemoryCache(
+            "showNetPrices",
+            function()
+            {
+                $customerShowNet = false;
+                /** @var SessionStorageService $sessionStorageService */
+                $sessionStorageService = pluginApp( SessionStorageService::class );
+                $customer = $sessionStorageService->getCustomer();
+                if ( $customer !== null )
+                {
+                    $customerShowNet = $customer->showNetPrice;
+                }
+
+                $contactClassShowNet = false;
+                $contactClassId = $this->getContactClassId();
+                if ( $contactClassId !== null )
+                {
+                    $contactClass = $this->getContactClassData( $contactClassId );
+                    if ( $contactClass !== null )
+                    {
+                        $contactClassShowNet = $contactClass['showNetPrice'];
+                    }
+                }
+
+                return $customerShowNet || $contactClassShowNet;
+            }
+        );
     }
     
     public function getContactClassMinimumOrderQuantity()
@@ -287,9 +328,16 @@ class CustomerService
      */
 	public function getContact()
 	{
-		if($this->getContactId() > 0)
+	    $contactId = $this->getContactId();
+		if($contactId > 0)
 		{
-			return $this->contactRepository->findContactById($this->getContactId());
+			return $this->fromMemoryCache(
+			    "contact.$contactId",
+                function() use ($contactId)
+                {
+                    return $this->contactRepository->findContactById($this->getContactId());
+                }
+            );
 		}
 		return null;
 	}
@@ -328,22 +376,60 @@ class CustomerService
 
 		return null;
 	}
-	
-	private function updateContactWithAddressData($address)
+
+    /**
+     * @param Address $address
+     * @return null|Contact
+     */
+	private function updateContactWithAddressData(Address $address)
     {
         $contactData = [];
         $contact = null;
         
-        if($address instanceof Address)
-        {
-            $contactData['gender'] = $address->gender;
-            $contactData['firstName'] = $address->name2;
-            $contactData['lastName'] = $address->name3;
-    
-            $contact = $this->updateContact($contactData);
-        }
-        
+        $contactData['gender'] = $address->gender;
+        $contactData['firstName'] = $address->firstName;
+        $contactData['lastName'] = $address->lastName;
+        $contactData['birthdayAt'] = $address->birthday;
+        $contactData['options'] = $this->getContactOptionsFromAddress($address->options);
+
+        $contact = $this->updateContact($contactData);
+
         return $contact;
+    }
+
+    /**
+     * @param $addressOptions
+     * @return array
+     */
+    private function getContactOptionsFromAddress($addressOptions)
+    {
+        $options = [];
+        $addressToContactOptionsMap =
+        [
+            AddressOption::TYPE_TELEPHONE =>
+            [
+                'typeId' => ContactOption::TYPE_PHONE,
+                'subTypeId' => ContactOption::SUBTYPE_PRIVATE
+            ]
+        ];
+
+        foreach($addressOptions as $key => $addressOption)
+        {
+            $mapItem = $addressToContactOptionsMap[$addressOption->typeId];
+
+            if(!empty($mapItem))
+            {
+                $options[] =
+                [
+                    'typeId' => $mapItem['typeId'],
+                    'subTypeId' => $mapItem['subTypeId'],
+                    'priority' => 0,
+                    'value' => $addressOption->value
+                ];
+            }
+        }
+
+        return $options;
     }
 	
 	public function updatePassword($newPassword, $contactId = 0, $hash='')
@@ -472,6 +558,11 @@ class CustomerService
         if (isset($addressData['stateId']) && empty($addressData['stateId']))
         {
             $addressData['stateId'] = null;
+        }
+
+        if (isset($addressData['gender']) && empty($addressData['gender']))
+        {
+            $addressData['gender'] = null;
         }
         
         $newAddress = null;
@@ -610,6 +701,11 @@ class CustomerService
             unset($addressData['checkedAt']);
         }
 
+        if (isset($addressData['gender']) && empty($addressData['gender']))
+        {
+            $addressData['gender'] = null;
+        }
+
         if((int)$this->getContactId() > 0)
         {
             $addressData['options'] = $this->buildAddressEmailOptions([], false, $addressData);
@@ -628,6 +724,18 @@ class CustomerService
             }
             
             $newAddress = $this->contactAddressRepository->updateAddress($addressData, $addressId, $this->getContactId(), $type);
+
+            if($type == AddressType::BILLING) {
+
+                $firstStoredAddress = $this->contactAddressRepository->findContactAddressByTypeId((int)$this->getContactId(),$type, false);
+
+                if($addressId == $firstStoredAddress->id) {
+                    $this->updateContactWithAddressData($newAddress);
+                }
+            }
+
+
+
         }
         else
         {
@@ -635,8 +743,25 @@ class CustomerService
             $addressData['options'] = $this->buildAddressEmailOptions([], true, $addressData);
             $newAddress = $this->addressRepository->updateAddress($addressData, $addressId);
         }
-        
-        
+    
+        /** @var AuthHelper $authHelper */
+        $authHelper = pluginApp(AuthHelper::class);
+    
+        $authHelper->processUnguarded( function() use ($type, $newAddress)
+        {
+            /**
+             * @var BasketService $basketService
+             */
+            $basketService = pluginApp(BasketService::class);
+            if($type == AddressType::BILLING)
+            {
+                $basketService->setBillingAddressId($newAddress->id);
+            }
+            elseif($type == AddressType::DELIVERY)
+            {
+                $basketService->setDeliveryAddressId($newAddress->id);
+            }
+        });
 
         //fire public event
         /** @var Dispatcher $pluginEventDispatcher */
@@ -660,6 +785,8 @@ class CustomerService
 	    
         if($this->getContactId() > 0)
         {
+            $firstStoredAddress = $this->contactAddressRepository->findContactAddressByTypeId((int)$this->getContactId(),$type, false);
+
             $this->contactAddressRepository->deleteAddress($addressId, $this->getContactId(), $type);
             
             if($type == AddressType::BILLING)
@@ -669,6 +796,16 @@ class CustomerService
             elseif($type == AddressType::DELIVERY)
             {
                 $basketService->setDeliveryAddressId(CustomerAddressResource::ADDRESS_NOT_SET);
+            }
+
+            if($firstStoredAddress instanceof Address && $firstStoredAddress->id === $addressId)
+            {
+                $firstStoredAddress = $this->contactAddressRepository->findContactAddressByTypeId((int)$this->getContactId(),$type, false);
+
+                if($firstStoredAddress instanceof Address)
+                {
+                    $this->updateContactWithAddressData($firstStoredAddress);
+                }
             }
         }
         else
@@ -757,6 +894,8 @@ class CustomerService
             
             $basketService->setBillingAddressId(0);
             $basketService->setDeliveryAddressId(0);
+            
+            $this->sessionStorage->setSessionValue(SessionStorageKeys::GUEST_EMAIL, null);
         }
     }
 }

@@ -2,11 +2,12 @@
 
 namespace IO\Builder\Order;
 
+use IO\Extensions\Filters\ItemNameFilter;
 use IO\Services\SessionStorageService;
 use Plenty\Modules\Basket\Models\Basket;
-use Plenty\Modules\Basket\Models\BasketItem;
 use IO\Services\CheckoutService;
 use Plenty\Modules\Frontend\PaymentMethod\Contracts\FrontendPaymentMethodRepositoryContract;
+use Plenty\Modules\Frontend\Services\OrderPropertyFileService;
 use Plenty\Modules\Frontend\Services\VatService;
 
 /**
@@ -25,14 +26,18 @@ class OrderItemBuilder
      */
 	private $vatService;
 
+	/** @var ItemNameFilter */
+	private $itemNameFilter;
+
 	/**
 	 * OrderItemBuilder constructor.
 	 * @param CheckoutService $checkoutService
 	 */
-	public function __construct(CheckoutService $checkoutService, VatService $vatService)
+	public function __construct(CheckoutService $checkoutService, VatService $vatService, ItemNameFilter $itemNameFilter)
 	{
 		$this->checkoutService = $checkoutService;
 		$this->vatService = $vatService;
+		$this->itemNameFilter = $itemNameFilter;
 	}
 
 	/**
@@ -53,7 +58,7 @@ class OrderItemBuilder
                 $maxVatRate = $item['vat'];
             }
 
-			array_push($orderItems, $this->basketItemToOrderItem($item));
+			array_push($orderItems, $this->basketItemToOrderItem($item, $basket->basketRebate));
 		}
 
 
@@ -102,13 +107,22 @@ class OrderItemBuilder
 	 * @param array $basketItem
 	 * @return array
 	 */
-	private function basketItemToOrderItem(array $basketItem):array
+	private function basketItemToOrderItem(array $basketItem, $basketDiscount):array
 	{
         $basketItemProperties = [];
         if(count($basketItem['basketItemOrderParams']))
         {
+            /** @var OrderPropertyFileService $orderPropertyFileService */
+            $orderPropertyFileService = pluginApp(OrderPropertyFileService::class);
+            
             foreach($basketItem['basketItemOrderParams'] as $property)
             {
+                if($property['type'] == 'file')
+                {
+                    $file = $orderPropertyFileService->copyBasketFileToOrder($property['value']);
+                    $property['value'] = $file;
+                }
+                
                 $basketItemProperty = [
                     'propertyId' => $property['propertyId'],
                     'value'      => $property['value']
@@ -118,30 +132,32 @@ class OrderItemBuilder
             }
         }
         
-		$priceOriginal = $basketItem['variation']['data']['calculatedPrices']['default']['basePrice'];
+		$priceOriginal = $basketItem['variation']['data']['prices']['default']['data']['basePrice'];
 
         $attributeTotalMarkup = 0;
 		if(isset($basketItem['attributeTotalMarkup']))
 		{
             $attributeTotalMarkup = $basketItem['attributeTotalMarkup'];
-			if($attributeTotalMarkup != 0)
-			{
-				$priceOriginal -= $attributeTotalMarkup;
-			}
         }
         
         $rebate = 0;
+		
         if(isset($basketItem['rebate']))
 		{
 			$rebate = $basketItem['rebate'];
 		}
-	    
+		
+		if((float)$basketDiscount > 0)
+        {
+            $rebate += $basketDiscount;
+        }
+
 		return [
 			"typeId"            => OrderItemType::VARIATION,
 			"referrerId"        => $basketItem['referrerId'],
 			"itemVariationId"   => $basketItem['variationId'],
 			"quantity"          => $basketItem['quantity'],
-			"orderItemName"     => $basketItem['variation']['data']['texts']['name1'],
+			"orderItemName"     => $this->itemNameFilter->itemName( $basketItem['variation']['data'] ),
 			"shippingProfileId" => $basketItem['shippingProfileId'],
 			"countryVatId"      => $this->vatService->getCountryVatId(),
 			"vatRate"           => $basketItem['vat'],
@@ -149,11 +165,11 @@ class OrderItemBuilder
             "orderProperties"   => $basketItemProperties,
 			"amounts"           => [
 				[
-					"currency"           => $this->checkoutService->getCurrency(),
-					"priceOriginalGross" => $priceOriginal,
-                    "surcharge" => $attributeTotalMarkup,
-					"rebate"	=> $rebate,
-					"isPercentage" => 1
+					"currency"              => $this->checkoutService->getCurrency(),
+					"priceOriginalGross"    => $priceOriginal,
+                    "surcharge"             => $attributeTotalMarkup,
+					"discount"	            => $rebate,
+					"isPercentage"          => true
 				]
 			]
 		];

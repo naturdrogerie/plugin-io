@@ -56,6 +56,7 @@
       "search"                : "/search",
       "place-order"           : "/place-order & /execute-payment",
       "cancellation-rights"   : "/cancellation-rights",
+      "cancellation-form"     : "/cancellation-form",
       "legal-disclosure"      : "/legal-disclosure",
       "privacy-policy"        : "/privacy-policy",
       "gtc"                   : "/gtc",
@@ -63,7 +64,9 @@
       "item"                  : "Item routes",
       "category"              : "Category routes",
       "wish-list"             : "/wish-list",
-      "order-return"          : "/order-return"
+      "order-return"          : "/order-return",
+      "order-property-file"   : "/order-property-file",
+      "order-return-confirmation": "/order-return-confirmation"
     },
     "default"                       : "all"
   }

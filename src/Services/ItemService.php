@@ -11,31 +11,26 @@ use IO\Builder\Item\ItemColumnBuilder;
 use IO\Builder\Item\ItemFilterBuilder;
 use IO\Builder\Item\ItemParamsBuilder;
 use IO\Builder\Item\Params\ItemColumnsParams;
-use IO\Constants\CrossSellingType;
 use IO\Constants\ItemConditionTexts;
 use IO\Constants\Language;
-use IO\Services\ItemLoader\Loaders\ItemURLs;
-use IO\Services\ItemLoader\Services\ItemLoaderService;
-use IO\Services\ItemLoader\Loaders\Items;
+use IO\Helper\MemoryCache;
 use IO\Extensions\Filters\ItemImagesFilter;
+use IO\Services\ItemSearch\SearchPresets\SingleItem;
+use IO\Services\ItemSearch\Services\ItemSearchService;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\ElasticSearch;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Processor\DocumentProcessor;
 use Plenty\Modules\Cloud\ElasticSearch\Lib\Search\Document\DocumentSearch;
-use Plenty\Modules\Cloud\ElasticSearch\Lib\Source\IncludeSource;
 use Plenty\Modules\Item\Attribute\Contracts\AttributeNameRepositoryContract;
 use Plenty\Modules\Item\Attribute\Contracts\AttributeValueNameRepositoryContract;
 use Plenty\Modules\Item\DataLayer\Contracts\ItemDataLayerRepositoryContract;
 use Plenty\Modules\Item\DataLayer\Models\Record;
 use Plenty\Modules\Item\DataLayer\Models\RecordList;
-use Plenty\Modules\Item\Search\Aggregations\AttributeValueListAggregation;
-use Plenty\Modules\Item\Search\Aggregations\AttributeValueListAggregationProcessor;
 use Plenty\Modules\Item\Search\Contracts\VariationElasticSearchSearchRepositoryContract;
 use Plenty\Modules\Item\Search\Filter\CategoryFilter;
 use Plenty\Modules\Item\Search\Filter\ClientFilter;
 use Plenty\Modules\Item\Search\Filter\SearchFilter;
 use Plenty\Modules\Item\Search\Filter\VariationBaseFilter;
 use Plenty\Plugin\Application;
-use IO\Services\TemplateConfigService;
 use Plenty\Plugin\Events\Dispatcher;
 
 
@@ -45,6 +40,8 @@ use Plenty\Plugin\Events\Dispatcher;
  */
 class ItemService
 {
+    use MemoryCache;
+
 	/**
 	 * @var Application
 	 */
@@ -336,41 +333,25 @@ class ItemService
      * @param int $variationId
      * @param string $imageAccessor
      * @return string
+     *
+     * @deprecated
      */
     public function getVariationImage(int $variationId = 0, string $imageAccessor = 'urlPreview'):string
     {
-        /**
-         * @var ItemLoaderService $itemLoaderService
-         */
-        $itemLoaderService = pluginApp(ItemLoaderService::class);
-        
-        $itemLoaderService
-            ->setLoaderClassList([Items::class])
-            ->setOptions(['variationIds' => [$variationId]])
-            ->setResultFields(['images']);
-        
-        $variation = $itemLoaderService->load();
+        /** @var ItemSearchService $itemSearchService */
+        $itemSearchService = pluginApp( ItemSearchService::class );
+        $variation = $itemSearchService->getResult(
+            SingleItem::getSearchFactory([
+                'variationId' => $variationId
+            ])
+        );
+
 
         if(is_array($variation) && count($variation['documents']))
         {
-            $itemImageFilter = pluginApp(ItemImagesFilter::class);
-            $variationImages = $itemImageFilter->getItemImages($variation['documents'][0]['data']['images'], $imageAccessor);
-            $variationImage = [];
-
-            foreach ($variationImages as $image)
-            {
-                if(!count($variationImage) || $variationImage['position'] > $image['position'])
-                {
-                    $variationImage = $image;
-                }
-            }
-
-            if(!is_null($variationImage['url']))
-            {
-                return $variationImage['url'];
-            }
-
-            return '';
+            /** @var ItemImagesFilter $itemImageFilter */
+            $itemImageFilter = pluginApp( ItemImagesFilter::class );
+            return $itemImageFilter->getFirstItemImageUrl( $variation['documents'][0]['data']['images'], $imageAccessor );
         }
 
         return '';
@@ -420,69 +401,76 @@ class ItemService
 	 */
 	public function getVariationAttributeMap($itemId = 0):array
 	{
-		$variations = [];
+	    $attributeMap = $this->fromMemoryCache(
+	        "variationAttributeMap.$itemId",
+            function() use ($itemId) {
+                $variations = [];
 
-		if((int)$itemId > 0)
-		{
-			/** @var ItemColumnBuilder $columnBuilder */
-			$columnBuilder = pluginApp(ItemColumnBuilder::class);
-			$columns       = $columnBuilder
-				->withVariationBase([
-					                    VariationBaseFields::ID,
-					                    VariationBaseFields::ITEM_ID
-				                    ])
-                ->withItemDescription([
-                                        ItemDescriptionFields::URL_CONTENT
-                ])
-				->withVariationAttributeValueList([
-					                                  VariationAttributeValueFields::ATTRIBUTE_ID,
-					                                  VariationAttributeValueFields::ATTRIBUTE_VALUE_ID
-				                                  ])->build();
+                if((int)$itemId > 0)
+                {
+                    /** @var ItemColumnBuilder $columnBuilder */
+                    $columnBuilder = pluginApp(ItemColumnBuilder::class);
+                    $columns       = $columnBuilder
+                        ->withVariationBase([
+                            VariationBaseFields::ID,
+                            VariationBaseFields::ITEM_ID
+                        ])
+                        ->withItemDescription([
+                            ItemDescriptionFields::URL_CONTENT
+                        ])
+                        ->withVariationAttributeValueList([
+                            VariationAttributeValueFields::ATTRIBUTE_ID,
+                            VariationAttributeValueFields::ATTRIBUTE_VALUE_ID
+                        ])->build();
 
-			/** @var ItemFilterBuilder $filterBuilder */
-			$filterBuilder = pluginApp(ItemFilterBuilder::class);
+                    /** @var ItemFilterBuilder $filterBuilder */
+                    $filterBuilder = pluginApp(ItemFilterBuilder::class);
 
-            if(pluginApp(TemplateConfigService::class)->get('item.show_variation_over_dropdown') != 'true')
-            {
-                $filterBuilder->variationStockIsSalable();
+                    if(pluginApp(TemplateConfigService::class)->get('item.show_variation_over_dropdown') != 'true')
+                    {
+                        $filterBuilder->variationStockIsSalable();
+                    }
+
+                    $filter = $filterBuilder
+                        ->hasId([$itemId])
+                        ->variationIsActive()
+                        ->build();
+
+                    /** @var ItemParamsBuilder $paramsBuilder */
+                    $paramsBuilder = pluginApp(ItemParamsBuilder::class);
+                    $params        = $paramsBuilder
+                        ->withParam(ItemColumnsParams::LANGUAGE, $this->sessionStorage->getLang())
+                        ->withParam(ItemColumnsParams::PLENTY_ID, $this->app->getPlentyId())
+                        ->withParam(ItemColumnsParams::CUSTOMER_CLASS, pluginApp(CustomerService::class)->getContact()->classId)
+                        ->build();
+
+                    $recordList = $this->itemRepository->search($columns, $filter, $params);
+
+                    foreach($recordList as $variation)
+                    {
+                        if($variation->itemDescription->urlContent !== "" )
+                        {
+                            $url = $variation->itemDescription->urlContent  ."_". $itemId;
+                        }
+                        else
+                        {
+                            $url = $itemId;
+                        }
+
+                        $data = [
+                            "variationId" => $variation->variationBase->id,
+                            "attributes"  => $variation->variationAttributeValueList,
+                            "url"         => $url
+                        ];
+                        array_push($variations, $data);
+                    }
+                }
+
+                return $variations;
             }
+        );
 
-			$filter = $filterBuilder
-				->hasId([$itemId])
-				->variationIsActive()
-                ->build();
-
-			/** @var ItemParamsBuilder $paramsBuilder */
-			$paramsBuilder = pluginApp(ItemParamsBuilder::class);
-			$params        = $paramsBuilder
-				->withParam(ItemColumnsParams::LANGUAGE, $this->sessionStorage->getLang())
-				->withParam(ItemColumnsParams::PLENTY_ID, $this->app->getPlentyId())
-                ->withParam(ItemColumnsParams::CUSTOMER_CLASS, pluginApp(CustomerService::class)->getContact()->classId)
-				->build();
-
-			$recordList = $this->itemRepository->search($columns, $filter, $params);
-
-			foreach($recordList as $variation)
-			{
-                if($variation->itemDescription->urlContent !== "" )
-                {
-                    $url = $variation->itemDescription->urlContent  ."_". $itemId;
-                }
-                else
-                {
-                    $url = $itemId;
-                }
-
-                $data = [
-                    "variationId" => $variation->variationBase->id,
-                    "attributes"  => $variation->variationAttributeValueList,
-                    "url"         => $url
-                ];
-				array_push($variations, $data);
-			}
-		}
-
-		return $variations;
+	    return $attributeMap;
 	}
 
     /**
@@ -583,7 +571,7 @@ class ItemService
 					$attributeId                         = $attribute->attributeId;
 					$attributeValueId                    = $attribute->attributeValueId;
 					$attributeList[$attributeId]["name"] = $this->getAttributeName($attributeId);
-					if(!in_array($attributeValueId, $attributeList[$attributeId]["values"]))
+					if(!array_key_exists($attributeValueId, $attributeList[$attributeId]["values"]))
 					{
 						$attributeList[$attributeId]["values"][$attributeValueId] = $this->getAttributeValueName($attributeValueId);
 					}
@@ -635,18 +623,25 @@ class ItemService
 	 */
 	public function getAttributeName(int $attributeId = 0):string
 	{
-		/** @var AttributeNameRepositoryContract $attributeNameRepository */
-		$attributeNameRepository = pluginApp(AttributeNameRepositoryContract::class);
+	    $attributeName = $this->fromMemoryCache(
+	        "attributeName.$attributeId",
+            function() use ($attributeId) {
+                /** @var AttributeNameRepositoryContract $attributeNameRepository */
+                $attributeNameRepository = pluginApp(AttributeNameRepositoryContract::class);
 
-		$name      = '';
-		$attribute = $attributeNameRepository->findOne($attributeId, $this->sessionStorage->getLang());
+                $name      = '';
+                $attribute = $attributeNameRepository->findOne($attributeId, $this->sessionStorage->getLang());
 
-		if(!is_null($attribute))
-		{
-			$name = $attribute->name;
-		}
+                if(!is_null($attribute))
+                {
+                    $name = $attribute->name;
+                }
 
-		return $name;
+                return $name;
+            }
+        );
+
+	    return $attributeName;
 	}
 
 	/**
@@ -656,17 +651,26 @@ class ItemService
 	 */
 	public function getAttributeValueName(int $attributeValueId = 0):string
 	{
-		/** @var AttributeValueNameRepositoryContract $attributeValueNameRepository */
-		$attributeValueNameRepository = pluginApp(AttributeValueNameRepositoryContract::class);
+	    $attributeValueName = $this->fromMemoryCache(
+	        "attributeValueName.$attributeValueId",
+            function() use ($attributeValueId)
+            {
+                /** @var AttributeValueNameRepositoryContract $attributeValueNameRepository */
+                $attributeValueNameRepository = pluginApp(AttributeValueNameRepositoryContract::class);
 
-		$name           = '';
-		$attributeValue = $attributeValueNameRepository->findOne($attributeValueId, $this->sessionStorage->getLang());
-		if(!is_null($attributeValue))
-		{
-			$name = $attributeValue->name;
-		}
+                $name           = '';
+                $attributeValue = $attributeValueNameRepository->findOne($attributeValueId, $this->sessionStorage->getLang());
+                if(!is_null($attributeValue))
+                {
+                    $name = $attributeValue->name;
+                }
 
-		return $name;
+                return $name;
+            }
+        );
+
+	    return $attributeValueName;
+
 	}
 	
 	/**

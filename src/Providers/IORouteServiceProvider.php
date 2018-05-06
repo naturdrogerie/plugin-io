@@ -40,6 +40,7 @@ class IORouteServiceProvider extends RouteServiceProvider
             $api->resource('io/order/contactWish', 'OrderContactWishResource');
             $api->resource('io/order/return', 'OrderReturnResource');
             $api->resource('io/order/template', 'OrderTemplateResource');
+            $api->resource('io/order/property/file', 'OrderPropertyFileResource');
             $api->get('io/checkout', 'CheckoutResource@index');
             $api->post('io/checkout', 'CheckoutResource@store');
             $api->put('io/checkout', 'CheckoutResource@update');
@@ -139,6 +140,11 @@ class IORouteServiceProvider extends RouteServiceProvider
             $router->get('cancellation-rights', 'IO\Controllers\StaticPagesController@showCancellationRights');
         }
 
+        if ( in_array("cancellation-form", $enabledRoutes) || in_array("all", $enabledRoutes) ) {
+            //cancellation rights page
+            $router->get('cancellation-form', 'IO\Controllers\StaticPagesController@showCancellationForm');
+        }
+
         if ( in_array("legal-disclosure", $enabledRoutes) || in_array("all", $enabledRoutes) ) {
             //legal disclosure page
             $router->get('legal-disclosure', 'IO\Controllers\StaticPagesController@showLegalDisclosure');
@@ -164,6 +170,11 @@ class IORouteServiceProvider extends RouteServiceProvider
         {
             $router->get('returns/{orderId}', 'IO\Controllers\OrderReturnController@showOrderReturn');
         }
+        
+        if( in_array('order-return-confirmation', $enabledRoutes) || in_array("all", $enabledRoutes) )
+        {
+            $router->get('return-confirmation', 'IO\Controllers\OrderReturnConfirmationController@showOrderReturnConfirmation');
+        }
 
         if( (in_array("contact", $enabledRoutes) || in_array("all", $enabledRoutes) ) )
         {
@@ -174,6 +185,12 @@ class IORouteServiceProvider extends RouteServiceProvider
         if( in_array("password-reset", $enabledRoutes) || in_array("all", $enabledRoutes) )
         {
             $router->get('password-reset/{contactId}/{hash}', 'IO\Controllers\CustomerPasswordResetController@showReset');
+        }
+        
+        if( in_array("order-property-file", $enabledRoutes) || in_array("all", $enabledRoutes) )
+        {
+            $router->get('order-property-file/{hash1}/{filename}', 'IO\Controllers\OrderPropertyFileController@downloadTempFile');
+            $router->get('order-property-file/{hash1}/{hash2}/{filename}', 'IO\Controllers\OrderPropertyFileController@downloadFile');
         }
         
 		/*
